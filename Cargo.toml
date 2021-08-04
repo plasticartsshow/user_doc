@@ -1,0 +1,7 @@
+[workspace]
+members = [
+  "doc_proc_macro",
+  "doc_data",
+  "user_doc",
+  "tests",
+]
