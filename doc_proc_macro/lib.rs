@@ -1,8 +1,14 @@
-#![allow(unused_macros)]
 use doc_data::*;
+use once_cell::sync::{Lazy};
 use proc_macro::{TokenStream };
 use proc_macro2::{TokenTree, Span};
 use quote::quote;
+use std::{
+  sync::{
+    atomic::{AtomicUsize, Ordering},
+  },
+};
+use strum::{AsRefStr, EnumIter, IntoEnumIterator};
 use syn::{
   Attribute,
   AttributeArgs,
@@ -30,34 +36,12 @@ use syn::{
   Variant,
   Visibility,
 };
-use std::{
-  sync::{
-    atomic::{AtomicUsize, Ordering},
-  },
-};
-use once_cell::sync::{Lazy};
-
-use strum::{AsRefStr, EnumIter, IntoEnumIterator};
 
 /// Number of invocations of all procedural macros defined herein
 static INVOCATIONS: AtomicUsize = AtomicUsize::new(0);
-
+/// Count an invocation of any procedural macro 
 fn count_invocation() -> usize {
   INVOCATIONS.fetch_add(1, Ordering::SeqCst)
-}
-macro_rules! known_helpers_string_vec {
-  () => {
-    {
-      let m:Vec<String> = HelperAttr::iter().map(|helper_attr|helper_attr.as_ref().to_string() ).collect();
-      m
-    }
-  };
-  (@joined) => {
-    {
-      let m = known_helpers_string_vec!();
-      m.join(", ")
-    }
-  }
 }
 
 /// Are two [Path]s likely pointing to roughly the same thing 
@@ -68,7 +52,8 @@ fn paths_eq(
   format!("{}", quote!{#p_0}) == format!("{}", quote!{#p_1})
 }
 
-
+/// Parsing the outer attributes of any Rust item produces ParsedOuterAttrs.
+/// The item is optional. 
 #[derive(Clone, Debug)]
 struct ParsedOuterAttrs {
   /// Optional visibility modifier 
@@ -79,12 +64,17 @@ struct ParsedOuterAttrs {
   pub item_opt: Option<Item>,
 }
 impl ParsedOuterAttrs{
+  /// A default path for docs
+  #[allow(clippy::declare_interior_mutable_const)]
   pub const DOC_PATH: Lazy<Path> = Lazy::new(|| parse_str::<Path>("doc").expect("must parse doc path"));
+  /// The start of a [syn]-parsed attribute line's string literal segment 
   #[allow(dead_code)]
   pub const DOC_ATTR_LINE_START: &'static str = "= \"";
+  /// The end of a [syn]-parsed attribute line's string literal segment 
   pub const DOC_ATTR_LINE_END: &'static str = "\"";
-  pub const MD_LINE_END: &'static str = "\n";
-  // pub const MD_LINE_END: &'static str = "  ";
+  /// When joining individual doc lines, this will go between adjacent lines
+  pub const LINE_JOINER: &'static str = "\n";
+  
   /// Extract doc data into the appropriate global record
   pub fn extract_doc_data(
     &self,
@@ -112,7 +102,7 @@ impl ParsedOuterAttrs{
           other_attrs.push(attr.clone());
         } 
       }
-      if helper_attrs_and_attributes.len() > 0 {
+      if !helper_attrs_and_attributes.is_empty() {
         m.push((ident.clone(), helper_attrs_and_attributes, other_attrs));
       }
       Ok(())
@@ -129,7 +119,7 @@ impl ParsedOuterAttrs{
         // std::println!("\n\nhelper_attrs_and_attributes {:?}", helper_attrs_and_attributes );
         let helper_attrs = helper_attrs_and_attributes.iter().map(|(h,_)| h.clone()).collect();
         // std::println!("\n\nhelper_attrs {:?}", helper_attrs );
-        let content: String = Self::get_outer_doc_comments_string(&other_attributes);
+        let content: String = Self::get_outer_doc_comments_string(other_attributes);
         
         record_doc_from_helper_attributes_and_str(
           true, //count == INVOCATIONS.load(Ordering::SeqCst) - 1 && i == attrs_collection_len-1,  // throttle saving
@@ -191,9 +181,11 @@ impl ParsedOuterAttrs{
       String::new()
     }
   }
+  
+  #[allow(clippy::borrow_interior_mutable_const)]
   /// Get a collection of the lines of doc comments 
   pub fn get_doc_comments_lines(
-    outer_attrs: &Vec<Attribute>
+    outer_attrs: &[Attribute]
   ) -> Vec<String> {
     outer_attrs.iter()
     .filter_map(|Attribute{path, ref tokens, ..}| {
@@ -218,8 +210,8 @@ impl ParsedOuterAttrs{
   }
 
   /// Get a catenated string with all the doc comments 
-  pub fn get_outer_doc_comments_string(attrs: &Vec<Attribute>) -> String {
-    Self::get_doc_comments_lines(attrs).join(ParsedOuterAttrs::MD_LINE_END)
+  pub fn get_outer_doc_comments_string(attrs: &[Attribute]) -> String {
+    Self::get_doc_comments_lines(attrs).join(ParsedOuterAttrs::LINE_JOINER)
   }
 }
 impl Parse for ParsedOuterAttrs {
@@ -233,7 +225,7 @@ impl Parse for ParsedOuterAttrs {
   }
 }
 
-
+#[allow(clippy::enum_variant_names)]
 #[derive(AsRefStr, Clone, EnumIter, Debug, Eq, Ord, PartialOrd, PartialEq)]
 #[strum(serialize_all = "snake_case")]
 /// Attribute helpers
@@ -247,16 +239,6 @@ enum HelperAttr {
   /// Name-path up to and including this chapter 
   ChapterNameSlug(Vec<String>),
 }
-// impl core::cmp::PartialOrd for HelperAttr {
-//   fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
-//     let preferred_order = [
-//       Self::ChapterNum(0),
-//       Self::ChapterNumSlug(vec![]),
-//       Self::ChapterNum(0),
-//       Self::ChapterNameSlug(vec![]),
-//     ]
-//   }
-// }
 
 impl From<&HelperAttr> for Path {
   fn from(h: &HelperAttr) -> Self {
@@ -265,6 +247,7 @@ impl From<&HelperAttr> for Path {
 }
 impl HelperAttr {
   /// Instantiate from an AttributeArgs (Vec<NestedMeta>)
+  #[allow(clippy::ptr_arg)]
   pub fn from_attribute_args(a: &AttributeArgs) -> Result<Vec<Self>> {
     let mut selves = Vec::with_capacity(a.len());
     for nested_meta in a {
@@ -414,6 +397,7 @@ impl HelperAttr {
     chapter_num_slug,
   )
 )]
+/// Use this attribute macro to define user-facing documentation on a non-function item..
 pub fn user_doc_item(
   item: TokenStream
 ) -> TokenStream {
@@ -435,6 +419,7 @@ pub fn user_doc_item(
 }
 
 #[proc_macro_attribute]
+/// Use this attribute macro to define user-facing documentation on a function item.
 pub fn user_doc_fn(
   own_attr: TokenStream,
   item: TokenStream,
@@ -464,6 +449,8 @@ pub fn user_doc_fn(
   }
 }
 
+#[allow(clippy::ptr_arg)]
+/// Record a Documentable specified by the given [HelperAttr]s and [str] to the global store.
 fn record_doc_from_helper_attributes_and_str(
   do_save: bool,
   doc_comment_string: &str,
@@ -532,7 +519,7 @@ fn record_doc_from_helper_attributes_and_str(
         &name_opt,
         Some(documentable),
         Some(true),
-        &vec![],
+        &[],
         path_numbers,
       )
     },
@@ -549,7 +536,7 @@ fn record_doc_from_helper_attributes_and_str(
         Some(documentable),
         Some(true),
         path_names,
-        &vec![],
+        &[],
       )
     },
     (None, None) => {
@@ -558,7 +545,7 @@ fn record_doc_from_helper_attributes_and_str(
       // std::println!("writing {}  {:?}", documentable, std::time::Instant::now(), );
       docs_write_lock.add_entry(
         documentable,
-        name_opt.clone(),
+        name_opt,
         number_opt,
         Some(true),
       )

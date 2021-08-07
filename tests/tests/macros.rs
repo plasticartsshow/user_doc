@@ -100,17 +100,17 @@ fn must_extract_doc_comments () {
   let docs_read_lock = docs.read().expect("must get read guard on global docs");
   std::println!("docs_read_lock {:?} {:#?}", std::time::Instant::now(), *docs_read_lock );
   assert_eq!(
-    docs_read_lock.get_entry_at_numeric_path(&vec![1,3,4]).expect("must find test entry").0,
+    docs_read_lock.get_entry_at_numeric_path(&[1,3,4]).expect("must find test entry").0,
     String::from("The House of Almond Blossoms"),
     "It must have inserted the commented chapter at the given position with the numeric path overriding a single chapter number"
   );
   assert_eq!(
-    docs_read_lock.get_entry_at_numeric_path(&vec![33]).expect("must find test entry").0,
+    docs_read_lock.get_entry_at_numeric_path(&[33]).expect("must find test entry").0,
     String::from("The Peace Unmade"),
     "It must have inserted the commented chapter at the given position at the root-level path"
   );
   assert_eq!(
-    docs_read_lock.get_entry_at_numeric_path(&vec![1,3,5]).expect("must find test entry").1,
+    docs_read_lock.get_entry_at_numeric_path(&[1,3,5]).expect("must find test entry").1,
     " The parenchyma isn\\'t as stiff as usual. It looks almost floppy.\
       \n I stick out a hand to touch it. It sucks my fingertips forward.\
       \n When I pull my hand back, a hanging bridge of sap follows. Amazing. I\\'ve only ever seen it dry.",

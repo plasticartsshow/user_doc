@@ -1,6 +1,6 @@
 use once_cell::sync::Lazy;
 use serde::{Serialize, Deserialize};
-use serde_json;
+
 use std::{
   collections::{BTreeMap},
   fs::{self, File},
@@ -65,7 +65,7 @@ fn constrain_header_level(header_level: HeaderLevel) -> HeaderLevel{
 fn make_header(header_level: HeaderLevel) -> String {
   let mut s = String::new();
   for _i in 0..header_level {
-    s.push_str("#");
+    s.push('#');
   }
   s
 }
@@ -73,9 +73,9 @@ fn make_named_header(header_level: HeaderLevel, header_name: &str) -> String {
   format!("{} {}", make_header(header_level), header_name)
 }
 fn make_separator() -> String {
-  format!("---")
+  "---".to_string()
 }
-fn make_chapter_num_string(chap_nums_vec: &Vec<usize>) -> String {
+fn make_chapter_num_string(chap_nums_vec: &[usize]) -> String {
   let mut s = String::new();
   for n in chap_nums_vec.iter() {
     s = format!("{}.{}", s, n);
@@ -170,8 +170,8 @@ impl DocDict {
     name_opt: &Option<String>,
     documentable_opt: Option<Documentable>,
     overwrite_opt: Option<bool>, 
-    path_names: &Vec<String>,
-    path_numbers: &Vec<usize>,
+    path_names: &[String],
+    path_numbers: &[usize],
   ) -> anyhow::Result<()> {
     use anyhow::Context;
     // let _name = name_opt.clone().unwrap_or_default();
@@ -182,7 +182,7 @@ impl DocDict {
       let chapter_num = path_numbers.get(i).cloned().unwrap_or_else(|| {
         subdict.find_next_entry_number()
       });
-      let chapter_name = path_names.get(i).or(name_opt.as_ref()).cloned().unwrap_or_default();
+      let chapter_name = path_names.get(i).or_else(|| name_opt.as_ref()).cloned().unwrap_or_default();
       let empty_chapter = Documentable::BoxedDocDict(chapter_name.clone(), Box::new(DocDict(BTreeMap::new())));
       if !subdict.iter().any(|(num, (_name, _contents))| num == &chapter_num ) {
         let documentable = if i == path_numbers.len() - 1 {
@@ -228,8 +228,8 @@ impl DocDict {
   /// Find the next available (unused) entry number in a doc dict 
   pub fn find_next_entry_number(&self) -> usize {
     let mut n = 0usize;
-    let nums = self.keys().cloned().collect::<Vec<_>>();
-    while nums.contains(&n) {
+    
+    while self.keys().cloned().any(|x| x == n) {
       n+=1;
     }
     n
@@ -295,14 +295,14 @@ impl DocDict {
     }
   }
 
-  
+  #[allow(clippy::unnecessary_unwrap)]
   /// Get an immutable reference to an entry at the specified numeric path. Returns `None` if the
   /// a path is not present.
-  pub fn get_entry_at_numeric_path(&self, path: &Vec<usize>) -> Option<&DocDictEntryValueType> {
-    let mut map_pointer: &Self = &self;
+  pub fn get_entry_at_numeric_path(&self, path: &[usize]) -> Option<&DocDictEntryValueType> {
+    let mut map_pointer: &Self = self;
     let max_depth = path.len() - 1;
     for (depth, index) in path.iter().enumerate() {
-      let entry_opt = map_pointer.get(&index);
+      let entry_opt = map_pointer.get(index);
       if entry_opt.is_some()  {
         if depth == max_depth {
           // this must be the record 
@@ -326,13 +326,14 @@ impl DocDict {
     None 
   }
 
+  #[allow(clippy::unnecessary_unwrap)]
   /// Get a mutable reference to an entry at the specified numeric path. Returns `None` if the
   /// a path is not present.
-  pub fn get_mut_entry_at_numeric_path(&mut self, path: &Vec<usize>) -> Option<&mut DocDictEntryValueType> {
+  pub fn get_mut_entry_at_numeric_path(&mut self, path: &[usize]) -> Option<&mut DocDictEntryValueType> {
     let mut map_pointer: &mut Self = self;
     let max_depth = path.len() - 1;
     for (depth, index) in path.iter().enumerate() {
-      let entry_opt = map_pointer.get_mut(&index);
+      let entry_opt = map_pointer.get_mut(index);
       if entry_opt.is_some()  {
         if depth == max_depth {
           // this must be the record 
@@ -384,13 +385,13 @@ pub fn save_docs_to_path(
 ) -> anyhow::Result<()> {
   use anyhow::Context;
   let dir_path: PathBuf = if let Some(dir_path_str) = dir_path_str_opt {
-    dir_path_str.to_string().into()
+    dir_path_str.into()
   } else {
     std::env::temp_dir().join(OUTPUT_DIR_PATH)
   };
   // let dir_path_str: &str = &dir_path_str_opt.unwrap_or(OUTPUT_DIR_PATH.to_string());
   // let dir_path = Path::new(dir_path_str);
-  let file_name: &str = &file_name_str_opt.unwrap_or(OUTPUT_FILE_NAME.to_string());
+  let file_name: &str = &file_name_str_opt.unwrap_or_else(|| OUTPUT_FILE_NAME.to_string());
   // let overwrite = overwrite_opt.unwrap_or_default();
   // Create the path if it doesn't exist
   if !dir_path.is_dir() {
@@ -425,11 +426,11 @@ pub fn load_docs_from_path (
   use anyhow::Context;
   // let dir_path_str: &str = &dir_path_str_opt.unwrap_or("./".to_string());
   let dir_path: PathBuf = if let Some(dir_path_str) = dir_path_str_opt {
-    dir_path_str.to_string().into()
+    dir_path_str.into()
   } else {
     std::env::temp_dir().join(OUTPUT_DIR_PATH)
   };
-  let file_name: &str = &file_name_str_opt.unwrap_or(OUTPUT_FILE_NAME.to_string());
+  let file_name: &str = &file_name_str_opt.unwrap_or_else(|| OUTPUT_FILE_NAME.to_string());
   // let overwrite = overwrite_opt.unwrap_or_default();
   // Create the path if it doesn't exist
   if !dir_path.is_dir() {
@@ -447,9 +448,7 @@ pub fn load_docs_from_path (
   let docs = &*DOCS;
   let doc_dict: DocDict = serde_json::from_reader(file_reader)
     .with_context(|| {
-      format!(
-        "Must read JSON from file into docs",
-      )
+      "Must read JSON from file into docs".to_string()
     })?;
   let mut docs_write_lock = docs.write()
     .map_err(|poison_error| {
