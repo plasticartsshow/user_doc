@@ -1,0 +1,79 @@
+name: Rust
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  buildandtest:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macOS-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build
+        run: cargo build --verbose
+      - name: Run default tests
+        run: cargo test --verbose
+      - name: Install wasm-pack
+        run: |
+          curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+          wasm-pack --version
+      - name: Run headless browser tests
+        run: |
+          wasm-pack test --headless --chrome
+          wasm-pack test --headless --firefox
+
+  buildreadme:
+    name: Build readme
+    runs-on: ubuntu-latest
+    needs: buildandtest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install cargo-readme
+        run: cargo install cargo-readme
+      - name: Create README.md file from user_doc/src/lib.rs
+        run: cargo readme -i user_doc/src/lib.rs -o README.md
+      - uses: EndBug/add-and-commit@v7 # You can change this to use a specific version, but @7 seems to work
+        with:
+          # The arguments for the `git add` command (see the paragraph below for more info)
+          # Default: '.'
+          add: 'README.md'
+          # Name of the branch to use, if different from the one that triggered the workflow
+          # Default: the branch that triggered the run
+          branch: main
+          # Determines the way the action fills missing author name and email. Three options are available:
+          # - github_actor -> UserName <UserName@users.noreply.github.com>
+          # - user_info -> Your Display Name <your-actual@email.com>
+          # - github_actions -> github-actions <email associated with the github logo>
+          # Default: github_actor
+          default_author: github_actor
+         # The message for the commit
+          # Default: 'Commit from GitHub Actions (name of the workflow)'
+          message: 'Updated README.md'
+          # The flag used on the pull strategy. Use NO-PULL to avoid the action pulling at all.
+          # Default: '--no-rebase'
+          pull_strategy: NO-PULL
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dtolnay/rust-toolchain@clippy
+      # The reason for -A clippy::redundant_field_names is a clippy bug that doesn't seem fixed.
+      # https://github.com/rust-lang/rust-clippy/issues/5356
+      - run: cd doc_data && cargo clippy -- -D clippy::all -A clippy::redundant_field_names
+      - run: cd doc_proc_macro && cargo clippy -- -D clippy::all -A clippy::redundant_field_names
+      - run: cd tests && cargo clippy --tests -- -D clippy::all -A clippy::redundant_field_names
+      - run: cd user_doc && cargo clippy --tests -- -D clippy::all -A clippy::redundant_field_names
