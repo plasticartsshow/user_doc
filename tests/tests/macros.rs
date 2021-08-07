@@ -93,7 +93,7 @@ fn must_extract_doc_comments () {
     "Other non-'user_doc' derives must work as intended without interference"
   );
   // 
-  user_doc::load_docs_from_path(
+  user_doc::load_global_docs_to_path(
     None, None
   ).expect("must load docs from path");
   let docs = &*user_doc::DOCS;

@@ -1,3 +1,73 @@
+//! Why define documentation in multiple places? ,
+//! The (attribute) [macro@user_doc_fn] and (derive) [macro@user_doc_item] macros 
+//! capture documentation from comments and make said documentation
+//! available at runtime. 
+//!
+//! 
+//! ## How to use it on a function definition:  
+//! ```ignore
+//! #[user_doc_fn(
+//!   chapter_num_slug(1, 3, 5),
+//!   chapter_name_slug(
+//!     "A Slaying in Luton", 
+//!     "The Trouble About Ipswich",
+//!     "All Along the Weary M-5 Motorway",
+//!   ),
+//! )]
+//! /// The parenchyma isn't as stiff as usual. It looks almost floppy.
+//! /// I stick out a hand to touch it. It sucks my fingertips forward.
+//! /// When I pull my hand back, a hanging bridge of sap follows. 
+//! pub fn call_this_function() -> bool { true }
+//! ``` 
+//! 
+//! The commented lines (from "The parenchyma" to "sap follows.") will be 
+//! captured and assigned a location in a tree hierarchy:  
+//! Chapters: 1. "A Slaying in Luton" > 3. "The Trouble About Ipswich" > 5. "All Along the Weary M-5 Motorway"  
+//! So that at runtime:  
+//! ```
+//! user_doc::load_global_docs_to_path(
+//!   None, None
+//! ).expect("must load docs from path");
+//! let docs = &*user_doc::DOCS;
+//! let docs_read_lock = docs.read().expect("must get read guard on global docs");
+//! assert_eq!(
+//!   docs_read_lock.get_entry_at_numeric_path(&[1,3,5]).expect("must find test entry").1,
+//!   " The parenchyma isn\\'t as stiff as usual. It looks almost floppy.\
+//!     \n I stick out a hand to touch it. It sucks my fingertips forward.\
+//!     \n When I pull my hand back, a hanging bridge of sap follows.",
+//! );
+//! ``` 
+//!
+//! The doc comment has been inserted in a tree structure. Wow.
+//!
+//! ## How to use it on a struct or enum definition.
+//! When working with structs or enums, the outer attribute commentss are NOT captured:
+//!
+//! ```ignore
+//! #[derive(user_doc_item, Clone, Debug, PartialEq, Eq)]
+//! /// This comment WILL NOT BE captured for user docs.
+//! pub enum Idiot {
+//!   #[chapter_num(23)] // should be overriden by slug 
+//!   #[chapter_num_slug(1, 3, 4)]
+//!   #[chapter_name("The House of Almond Blossoms")]
+//!   /// He took a look at the card I showed him. His brows scrunched up like he smelled something offensive. 
+//!   /// Could he tell it was fake? Everyone sweats in heat like this. If they don't, it means they're about to keel over from dehydration anyway. Still, I felt like I was sweating more than usual.
+//!   /// We stood frozen for a moment. It seemed an eon. Then he mercifully broke the silence. 
+//!   /// "I can't read those. I'm just supposed to stand here and not let anyone pass."
+//!   /// I considered. I didn't want to get him in trouble – he was clearly new. Still, it was me or him.
+//!   /// "Oh," I said as casually as I could, "It says you're to let me through. But don't let anyone else through after me. It says that too.""
+//!   Kid(u16),
+//! }
+//! let docs = &*user_doc::DOCS;
+//! let docs_read_lock = docs.read().expect("must get read guard on global docs");
+//! std::println!("docs_read_lock {:?} {:#?}", std::time::Instant::now(), *docs_read_lock );
+//! assert_eq!(
+//!   docs_read_lock.get_entry_at_numeric_path(&[1,3,4]).expect("must find test entry").0,
+//!   String::from("The House of Almond Blossoms"),
+//! );
+//! ```
+//! Here, the `chapter_num_slug` helper attribute has overriden the `chapter_num` attribute. 
+//! Slug-style (number or name) attributes and arguments will always take precedence.
 use doc_data::*;
 use once_cell::sync::{Lazy};
 use proc_macro::{TokenStream };
@@ -8,7 +78,7 @@ use std::{
     atomic::{AtomicUsize, Ordering},
   },
 };
-use strum::{AsRefStr, EnumIter, IntoEnumIterator};
+use strum::IntoEnumIterator;
 use syn::{
   Attribute,
   AttributeArgs,
@@ -23,13 +93,6 @@ use syn::{
   ItemStruct,
   parse_str,
   parse_macro_input,
-  Lit,
-  LitInt,
-  LitStr,
-  Meta,
-  MetaList,
-  MetaNameValue,
-  NestedMeta,
   Path,
   parse::{Parse, ParseStream},
   Result,
@@ -225,230 +288,6 @@ impl Parse for ParsedOuterAttrs {
   }
 }
 
-#[allow(clippy::enum_variant_names)]
-#[derive(AsRefStr, Clone, EnumIter, Debug, Eq, Ord, PartialOrd, PartialEq)]
-#[strum(serialize_all = "snake_case")]
-/// Attribute helpers
-enum HelperAttr {
-  /// Number of this chapter 
-  ChapterNum(usize),
-  /// Number-path up to and including this chapter 
-  ChapterNumSlug(Vec<usize>),
-  /// Name of this chapter 
-  ChapterName(String),
-  /// Name-path up to and including this chapter 
-  ChapterNameSlug(Vec<String>),
-}
-
-impl From<&HelperAttr> for Path {
-  fn from(h: &HelperAttr) -> Self {
-    parse_str::<Self>(h.as_ref()).expect("Must create path from HelperAttr")
-  }
-}
-impl HelperAttr {
-  /// Instantiate from an AttributeArgs (Vec<NestedMeta>)
-  #[allow(clippy::ptr_arg)]
-  pub fn from_attribute_args(a: &AttributeArgs) -> Result<Vec<Self>> {
-    let mut selves = Vec::with_capacity(a.len());
-    for nested_meta in a {
-      match nested_meta {
-        NestedMeta::Meta(ref meta) => {
-          match meta {
-            Meta::Path(ref path) => {
-              return Err(Error::new_spanned(
-                path, "unsupported attribute subpath"
-              ))
-            },
-            Meta::List(MetaList{ref path, ref nested, ..}) => {
-              if path.is_ident(Self::ChapterNameSlug(vec![]).as_ref()) {
-                let mut slugs = vec![];
-                for nested_meta in nested.iter() {
-                  match nested_meta {
-                    NestedMeta::Lit(Lit::Str(ref lit_str)) => {
-                      slugs.push(lit_str.value());
-                    },
-                    _ => {
-                      return Err(Error::new_spanned(
-                        nested_meta, "Unsupported nested meta attribute "
-                      ))
-                    }
-                  }
-                }
-                selves.push(Self::ChapterNameSlug(slugs));
-              } else if path.is_ident(Self::ChapterNumSlug(Vec::new()).as_ref()) {
-                let mut slugs = vec![];
-                for nested_meta in nested.iter() {
-                  match nested_meta {
-                    NestedMeta::Lit(Lit::Int(ref lit_int)) => {
-                      slugs.push(lit_int.base10_parse()?);
-                    },
-                    _ => {
-                      return Err(Error::new_spanned(
-                        nested_meta, "Unsupported nested meta attribute "
-                      ))
-                    }
-                  }
-                }
-                selves.push(Self::ChapterNumSlug(slugs));
-              } else {
-                return Err(Error::new_spanned(
-                  path, "Unsupported meta list path"
-                ));
-              }
-            },
-            Meta::NameValue(MetaNameValue{ref path, ref lit, ..}) => {
-              if path.is_ident(Self::ChapterName(String::new()).as_ref()) {
-                match lit {
-                  Lit::Str(ref lit_str) => {
-                    selves.push(Self::ChapterName(lit_str.value()));
-                  },
-                  bad_lit => {
-                    return Err(Error::new_spanned(bad_lit, "Unsupported chapter name literal"));
-                  }
-                }
-              } else if path.is_ident(Self::ChapterNum(0usize).as_ref()) {
-                match lit {
-                  Lit::Int(ref lit_int) => {
-                    selves.push(Self::ChapterNum(lit_int.base10_parse()?));
-                  },
-                  bad_lit => {
-                    return Err(Error::new_spanned(bad_lit, "Unsupported chapter number literal"));
-                  }
-                }
-              } else {
-                return Err(Error::new_spanned(
-                  path, "unrecognized helper attribute inner"
-                ));
-              }
-            }
-          }
-        },
-        _ => {
-          return Err(Error::new_spanned(
-            nested_meta, "unrecognized helper attribute"
-          ));
-        }
-      }
-    }
-    Ok(selves)
-  }
-  
-  /// Instantiate from an Attribute if said Attribute represents a valid HelperAttr
-  pub fn from_attribute(a: &Attribute) -> Result<Self> {
-    let Attribute{path, tokens: _, ..} = a;
-    if paths_eq(path, &(&Self::ChapterNum(0)).into()){
-      let chapter_num_lit_int = a.parse_args::<LitInt>()?;
-      Ok(Self::ChapterNum(chapter_num_lit_int.base10_parse()?))
-    } else if paths_eq(path, &(&Self::ChapterName(String::new())).into()){
-      let chapter_name_lit_str = a.parse_args::<LitStr>()?;
-      Ok(Self::ChapterName(chapter_name_lit_str.value()))
-    } else if paths_eq(path, &(&Self::ChapterNameSlug(Vec::new())).into()){
-      let meta = a.parse_meta()?;
-      match meta {
-        Meta::List(MetaList{nested, ..}) => {
-          let segments: Vec<String> = nested.iter().filter_map(
-            |nested_meta| {
-              match nested_meta {
-                NestedMeta::Lit(Lit::Str(lit_str)) => Some(lit_str.value()),
-                _ => None
-              }
-            }
-          ).collect();
-          Ok(Self::ChapterNameSlug(segments))
-        },
-        bad => Err(Error::new_spanned(bad, "unrecognized attribute payload for chapter_name_slug"))
-      }
-    } else if paths_eq(path, &(&Self::ChapterNumSlug(Vec::new())).into()){
-      let meta = a.parse_meta()?;
-      match meta {
-        Meta::List(MetaList{nested, ..}) => {
-          let mut segments_results: Vec<Result<usize>> = nested.iter().filter_map(
-            |nested_meta| {
-              match nested_meta {
-                NestedMeta::Lit(Lit::Int(lit_int)) => Some(
-                  lit_int.base10_parse()
-                ),
-                _ => None
-              }
-            }
-          ).collect();
-          let mut segments: Vec<usize> = Vec::with_capacity(segments_results.len());
-          for segment_result in segments_results.drain(0..) {
-            segments.push(segment_result?);
-          }
-          Ok(Self::ChapterNumSlug(segments))
-        },
-        bad => Err(Error::new_spanned(bad, "unrecognized attribute payload for chapter_name_slug"))
-      }
-    } else {
-      Err(Error::new_spanned(
-        path, "unrecognized helper attribute"
-      ))
-    }
-  }
-}
-
-#[proc_macro_derive(
-  user_doc_item,
-  attributes( 
-    chapter_name,
-    chapter_name_slug,
-    chapter_num, 
-    chapter_num_slug,
-  )
-)]
-/// Use this attribute macro to define user-facing documentation on a non-function item..
-pub fn user_doc_item(
-  item: TokenStream
-) -> TokenStream {
-  let count = count_invocation();
-  // let span: Span = item.span();
-  let parsed_outer_attrs = parse_macro_input!(item as ParsedOuterAttrs);
-  // std::println!("parsed item outer attrs: {:?}", parsed_outer_attrs );
-  // std::println!("parsed user_doc_item derive");
-  match parsed_outer_attrs.extract_doc_data(count) {
-    Ok(()) => TokenStream::new(),
-    Err(extraction_error) => Error::new(
-      Span::call_site(),
-      format!(
-        "Could not extract doc data during derive macro invocation:\n{:#?}",
-        extraction_error
-      )
-    ).into_compile_error().into()
-  } 
-}
-
-#[proc_macro_attribute]
-/// Use this attribute macro to define user-facing documentation on a function item.
-pub fn user_doc_fn(
-  own_attr: TokenStream,
-  item: TokenStream,
-) -> TokenStream {
-  let _count:usize = count_invocation();
-  // Copy item for output 
-  let it = item.clone();
-  // Capture own helper attributes 
-  let own_attribute_args = parse_macro_input!(own_attr as AttributeArgs);
-  let helper_attributes_res: Result<Vec<HelperAttr>> = HelperAttr::from_attribute_args(&own_attribute_args);
-  let parsed_outer_attrs = parse_macro_input!(item as ParsedOuterAttrs);
-  // std::println!("parsed user_doc_fn attribute");
-  // A fn can only generate a single Documentable::Doc item
-  // std::println!("parsed item outer attrs: {:?}", parsed_outer_attrs.get_doc_comments_lines() );
-  match helper_attributes_res {
-    Ok(helper_attributes) => {
-      match record_doc_from_helper_attributes_and_str(
-        true, // count == INVOCATIONS.load(Ordering::SeqCst) - 1, // Throttle saving to most recent invocation
-        &ParsedOuterAttrs::get_outer_doc_comments_string(&parsed_outer_attrs.outer_attrs),
-        &helper_attributes, 
-      ) {
-        Ok(()) => it,
-        Err(err) => err.into_compile_error().into()
-      }
-    },
-    Err(err) => err.into_compile_error().into()
-  }
-}
-
 #[allow(clippy::ptr_arg)]
 /// Record a Documentable specified by the given [HelperAttr]s and [str] to the global store.
 fn record_doc_from_helper_attributes_and_str(
@@ -557,7 +396,7 @@ fn record_doc_from_helper_attributes_and_str(
     Ok(()) => {
       if do_save {
         // std::println!("saving to default path and file", );
-        match doc_data::save_docs_to_path(
+        match doc_data::save_global_docs_to_path(
           None, 
           None,
         ) {
@@ -581,5 +420,68 @@ fn record_doc_from_helper_attributes_and_str(
         format!("{:#?}", error),
       ))
     }
+  }
+}
+
+#[proc_macro_derive(
+  user_doc_item,
+  attributes( 
+    chapter_name,
+    chapter_name_slug,
+    chapter_num, 
+    chapter_num_slug,
+  )
+)]
+/// Use this attribute macro to define user-facing documentation on a non-function item..
+/// - For more on the helper attributes this supports, see [HelperAttr]
+pub fn user_doc_item(
+  item: TokenStream
+) -> TokenStream {
+  let count = count_invocation();
+  // let span: Span = item.span();
+  let parsed_outer_attrs = parse_macro_input!(item as ParsedOuterAttrs);
+  // std::println!("parsed item outer attrs: {:?}", parsed_outer_attrs );
+  // std::println!("parsed user_doc_item derive");
+  match parsed_outer_attrs.extract_doc_data(count) {
+    Ok(()) => TokenStream::new(),
+    Err(extraction_error) => Error::new(
+      Span::call_site(),
+      format!(
+        "Could not extract doc data during derive macro invocation:\n{:#?}",
+        extraction_error
+      )
+    ).into_compile_error().into()
+  } 
+}
+
+#[proc_macro_attribute]
+/// Use this attribute macro to define user-facing documentation on a function item.
+/// - For more on the arguments this supports, see [HelperAttr]
+pub fn user_doc_fn(
+  own_attr: TokenStream,
+  item: TokenStream,
+) -> TokenStream {
+  let _count:usize = count_invocation();
+  // Copy item for output 
+  let it = item.clone();
+  // Capture own helper attributes 
+  let own_attribute_args = parse_macro_input!(own_attr as AttributeArgs);
+  let helper_attributes_res: Result<Vec<HelperAttr>> = HelperAttr::from_attribute_args(&own_attribute_args);
+  let parsed_outer_attrs = parse_macro_input!(item as ParsedOuterAttrs);
+  // std::println!("parsed user_doc_fn attribute");
+  // A fn can only generate a single Documentable::Doc item
+  // std::println!("parsed item outer attrs: {:?}", parsed_outer_attrs.get_doc_comments_lines() );
+  match helper_attributes_res {
+    Ok(helper_attributes) => {
+      match record_doc_from_helper_attributes_and_str(
+        true, // count == INVOCATIONS.load(Ordering::SeqCst) - 1, // Throttle saving to most recent invocation
+        &ParsedOuterAttrs::get_outer_doc_comments_string(&parsed_outer_attrs.outer_attrs),
+        &helper_attributes, 
+      ) {
+        Ok(()) => it,
+        Err(err) => err.into_compile_error().into()
+      }
+    },
+    Err(err) => err.into_compile_error().into()
   }
 }
