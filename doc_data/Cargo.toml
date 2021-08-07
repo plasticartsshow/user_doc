@@ -18,6 +18,7 @@ github = { repository = "plasticartsshow/user_doc" }
 path = "src/lib.rs"
 
 [dependencies]
-anyhow = { version = "1.0.38", default-features = false}
-chrono = {version = "0.4.19"}
-once_cell = {version="1.7.2"}
+anyhow = { version = "1.0.38"}
+once_cell = {version="1.7.2" }
+serde = {version = "1.0.127", features = ["derive"]}
+serde_json = {version = "1.0.66", features = ["preserve_order"]}

@@ -19,10 +19,12 @@ proc-macro = true
 path = "lib.rs"
 
 [dependencies]
-syn = {version = "1.0.74", features = ["full", "parsing"]}
-quote = {version = "1.0.9"}
-chrono = {version = "0.4.19"}
-proc-macro2 = {version = "1.0.28"}
+anyhow = { version = "1.0.38" }
+once_cell = { version="1.7.2" }
+proc-macro2 = { version = "1.0.28" }
+quote = { version = "1.0.9" }
+strum = { version ="0.20.0", features = ["derive"] }
+syn = { version = "1.0.74", features = ["full", "parsing"] }
 
 [dependencies.doc_data]
 package = "user_doc-doc_data"
