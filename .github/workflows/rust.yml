@@ -23,14 +23,14 @@ jobs:
         run: cargo build --verbose
       - name: Run default tests
         run: cargo test --verbose
-      - name: Install wasm-pack
-        run: |
-          curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
-          wasm-pack --version
-      - name: Run headless browser tests
-        run: |
-          wasm-pack test --headless --chrome
-          wasm-pack test --headless --firefox
+      # - name: Install wasm-pack
+      #   run: |
+      #     curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+      #     wasm-pack --version
+      # - name: Run headless browser tests
+      #   run: |
+      #     wasm-pack test --headless --chrome
+      #     wasm-pack test --headless --firefox
 
   buildreadme:
     name: Build readme
