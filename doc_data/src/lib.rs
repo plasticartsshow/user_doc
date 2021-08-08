@@ -391,7 +391,12 @@ pub type DocDictEntryValueType = (String, Documentable);
 pub type DocDictTree = BTreeMap<usize, DocDictEntryValueType>;
 #[derive(Clone, Serialize, Deserialize, Debug, Eq, Ord, PartialEq, PartialOrd)]
 /// A dictionary of doc
-pub struct DocDict(pub DocDictTree, pub Vec<(Vec<usize>, String)>);
+pub struct DocDict(
+  /// The dictionary tree 
+  pub DocDictTree, 
+  /// Backlinks and blurbs
+  pub Vec<(Vec<usize>, String)>
+);
 impl DocDict {
   /// Add an entry to a documentation dictionary
   pub fn add_entry(
