@@ -42,7 +42,7 @@ jobs:
       - name: Install cargo-readme
         run: cargo install cargo-readme
       - name: Create README.md file from user_doc/src/lib.rs
-        run: cargo readme -i user_doc/src/lib.rs -o README.md
+        run: cargo readme -r user_doc > README.md
       - uses: EndBug/add-and-commit@v7 # You can change this to use a specific version, but @7 seems to work
         with:
           # The arguments for the `git add` command (see the paragraph below for more info)

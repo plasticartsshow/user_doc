@@ -11,7 +11,6 @@ repository = "https://github.com/plasticartsshow/user_doc"
 
 [badges]
 maintenance = { status = "experimental" }
-github = { repository = "plasticartsshow/user_doc" }
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
