@@ -550,19 +550,16 @@ impl DocDict {
     use std::collections::VecDeque;
     let mut vv: VecDeque<(Vec<usize>, &DocDictEntryValueType)> = VecDeque::new();
     let start_slug = start_slug_opt.unwrap_or_default();
-    if self.0.len() > 0 {
+    if !self.0.is_empty() {
       // go through each root item and check what it contains
       for (k, entry) in self.0.iter() { 
         // record a new slug for this position
         let mut iter_slug = start_slug.clone();
         iter_slug.push(*k);
-        vv.push_back((iter_slug.clone(), &entry)); 
-        match &entry.1 {
-          Documentable::BoxedDocDict(_, dd) => {
-            // add the descent items for this node 
-            vv.extend(dd.deep_iter(Some(iter_slug.clone())))
-          },
-          _ => {}
+        vv.push_back((iter_slug.clone(), entry)); 
+        if let Documentable::BoxedDocDict(_, dd) = &entry.1 {
+          // add the descent items for this node 
+          vv.extend(dd.deep_iter(Some(iter_slug.clone())))
         }
       }
     }
@@ -584,7 +581,7 @@ impl DocDict {
     }
     let one_indentation = "  ";
     let indent_for_depth = |depth:usize| -> String {
-      let v = vec![one_indentation.clone(); depth];
+      let v = vec![one_indentation; depth];
       v.join("")
     };
     let mut slugs_to_paths: BTreeMap<Vec<usize>, PathBuf> = BTreeMap::new();
@@ -629,7 +626,7 @@ impl DocDict {
               indent_for_depth(depth),
               contents_name,
               subdir_path.strip_prefix(dir_path.clone())
-                .with_context(|| format!("Must create subdir path for summary.md"))?
+                .with_context(|| "Must create subdir path for summary.md".to_string())?
                 .to_string_lossy()
             )
           );
@@ -674,7 +671,7 @@ impl DocDict {
           // create chapter-level readme
           let mut chapter_readme_contents = format!("# {}", chapter_name);
           
-          if boxed_doc_dict.1.len() > 0 {
+          if !boxed_doc_dict.1.is_empty() {
             // Chapter blurbs 
             for (chapter_i, chapter_documentable) in boxed_doc_dict.0.iter() {
               let mut forward_link: PathBuf = match &naming_scheme {
@@ -716,7 +713,7 @@ impl DocDict {
     }
     
     // create summary md 
-    let mut summary_md_path = dir_path.clone();
+    let mut summary_md_path = dir_path;
     summary_md_path.push("SUMMARY");
     summary_md_path.set_extension("md");
     fs::write(summary_md_path.clone(), summary_md_contents)
