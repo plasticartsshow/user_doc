@@ -33,10 +33,19 @@ pub static OUTPUT_DIR_PATH: &str = "user_doc";
 static OUTPUT_FILE_NAME: &str = "user_doc.json";
 /// The repository of all active docs 
 pub static DOCS: Lazy<RwLock<DocDict>> = Lazy::new(|| {
-  RwLock::new(DocDict(BTreeMap::new()))
+  RwLock::new(DocDict(BTreeMap::new(), Vec::new()))
 });
 /// How much text to show in previews
 pub const PREVIEW_TEXT_LENGTH: usize = 16;
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+/// When expanding to directories, this determines the naming scheme 
+pub enum DirectoryNamingScheme {
+  /// Use the deepest-depth chapter name 
+  ChapterName,
+  /// Use the deepest-depth chapter number 
+  ChapterNumber,
+}
 
 #[derive(Clone, Serialize, Deserialize, Debug, Eq, Ord, PartialEq, PartialOrd)]
 /// A documentation or a Docdict 
@@ -111,6 +120,8 @@ pub enum HelperAttr {
   ChapterName(String),
   /// Name-path up to and including this chapter 
   ChapterNameSlug(Vec<String>),
+  /// A blurb to add to the page for the chapter 
+  ChapterBlurb(String)
 }
 
 impl From<&HelperAttr> for Path {
@@ -188,6 +199,15 @@ impl HelperAttr {
                     return Err(Error::new_spanned(bad_lit, "Unsupported chapter number literal"));
                   }
                 }
+              } else if path.is_ident(Self::ChapterBlurb(String::new()).as_ref()) {
+                match lit {
+                  Lit::Str(ref lit_str) => {
+                    selves.push(Self::ChapterBlurb(lit_str.value()));
+                  },
+                  bad_lit => {
+                    return Err(Error::new_spanned(bad_lit, "Unsupported chapter blurb literal"));
+                  }
+                }
               } else {
                 return Err(Error::new_spanned(
                   path, "unrecognized helper attribute inner"
@@ -215,6 +235,9 @@ impl HelperAttr {
     } else if path.is_ident(&Self::ChapterName(String::new()).as_ref()) {
       let chapter_name_lit_str = a.parse_args::<LitStr>()?;
       Ok(Self::ChapterName(chapter_name_lit_str.value()))
+    } else if path.is_ident(&Self::ChapterBlurb(String::new()).as_ref()) {
+      let chapter_name_blurb_str = a.parse_args::<LitStr>()?;
+      Ok(Self::ChapterBlurb(chapter_name_blurb_str.value()))
     } else if path.is_ident(&Self::ChapterNameSlug(Vec::new()).as_ref()) {
       let meta = a.parse_meta()?;
       match meta {
@@ -368,9 +391,9 @@ pub type DocDictEntryValueType = (String, Documentable);
 pub type DocDictTree = BTreeMap<usize, DocDictEntryValueType>;
 #[derive(Clone, Serialize, Deserialize, Debug, Eq, Ord, PartialEq, PartialOrd)]
 /// A dictionary of doc
-pub struct DocDict(pub DocDictTree);
+pub struct DocDict(pub DocDictTree, pub Vec<(Vec<usize>, String)>);
 impl DocDict {
-  /// Add an entry to a doc dict
+  /// Add an entry to a documentation dictionary
   pub fn add_entry(
     &mut self,
     documentable: Documentable, 
@@ -430,11 +453,12 @@ impl DocDict {
     }
   }
   
-  /// Add the path specified to a doc dict, filling with empty subtrees to get there.
+  /// Add the path specified to a documentation dictionary, filling with empty subtrees to get there.
   /// Return Ok(()) on success.
   /// - If the path exists, fail unless `overwrite_opt` contains `true` 
   pub fn add_path(
     &mut self, 
+    chapter_blurb_opt: &Option<String>,
     name_opt: &Option<String>,
     documentable_opt: Option<Documentable>,
     overwrite_opt: Option<bool>, 
@@ -451,7 +475,15 @@ impl DocDict {
         subdict.find_next_entry_number()
       });
       let chapter_name = path_names.get(i).or_else(|| name_opt.as_ref()).cloned().unwrap_or_default();
-      let empty_chapter = Documentable::BoxedDocDict(chapter_name.clone(), Box::new(DocDict(BTreeMap::new())));
+      let empty_chapter = Documentable::BoxedDocDict(
+        chapter_name.clone(), 
+        Box::new(
+          DocDict(
+            BTreeMap::new(), 
+            Vec::new(),
+          )
+        )
+      );
       if !subdict.iter().any(|(num, (_name, _contents))| num == &chapter_num ) {
         let documentable = if i == path_numbers.len() - 1 {
           // this is the target point of the path, where the optional documentable should go
@@ -467,6 +499,14 @@ impl DocDict {
           Some(chapter_num), 
           overwrite_opt
         )?;
+        // add the chapter blurb to the parent chapter text 
+        if let Some(ref chapter_blurb) = chapter_blurb_opt {
+          let back_link = path_numbers.to_vec();
+          subdict.1.push((
+            back_link,
+            chapter_blurb.to_string()
+          ));
+        }
         // std::println!("updated subdict {:#?}", subdict );
       } else {
         // just mark that this chapter already existed
@@ -493,7 +533,193 @@ impl DocDict {
     Ok(())
   }
   
-  /// Find the next available (unused) entry number in a doc dict 
+  /// Produce a depth-first, _immutable_ iterator over the entries in this documentation dictionary
+  /// The iterator will produce entries for the chapters AS WELL AS entries for the subchapters of
+  /// those chapters. 
+  pub fn deep_iter(
+    &self, 
+    start_slug_opt: Option<Vec<usize>>,
+  ) -> std::collections::vec_deque::IntoIter<
+    (Vec<usize>, &DocDictEntryValueType)
+  > {
+    use std::collections::VecDeque;
+    let mut vv: VecDeque<(Vec<usize>, &DocDictEntryValueType)> = VecDeque::new();
+    let start_slug = start_slug_opt.unwrap_or_default();
+    if self.0.len() > 0 {
+      // go through each root item and check what it contains
+      for (k, entry) in self.0.iter() { 
+        // record a new slug for this position
+        let mut iter_slug = start_slug.clone();
+        iter_slug.push(*k);
+        vv.push_back((iter_slug.clone(), &entry)); 
+        match &entry.1 {
+          Documentable::BoxedDocDict(_, dd) => {
+            // add the descent items for this node 
+            vv.extend(dd.deep_iter(Some(iter_slug.clone())))
+          },
+          _ => {}
+        }
+      }
+    }
+    vv.into_iter()
+  }
+  
+  /// Expand this doc dict into directories at the given _directory_ path
+  pub fn expand_into_mdbook_dirs_at_path(
+    &self,
+    naming_scheme: DirectoryNamingScheme, 
+    root_path: &str,
+  ) -> anyhow::Result<()> {
+    use anyhow::Context;
+    const README_NAME:&str = "README";
+    let dir_path: PathBuf = root_path.into();
+    if !dir_path.is_dir() {
+      fs::create_dir_all(dir_path.clone())
+        .with_context(|| format!("Must create root path {:?}", dir_path))?;
+    }
+    let one_indentation = "  ";
+    let indent_for_depth = |depth:usize| -> String {
+      let v = vec![one_indentation.clone(); depth];
+      v.join("")
+    };
+    let mut slugs_to_paths: BTreeMap<Vec<usize>, PathBuf> = BTreeMap::new();
+    let mut summary_md_contents = String::from("# Summary");
+    if !self.1.is_empty() {
+      for chapter_summary_line in self.1.iter() {
+        summary_md_contents.push_str(&format!("\n{}  ", chapter_summary_line.1));
+      }
+    }
+    for (iter_slug, (name, documentable)) in self.deep_iter(None) {
+      let depth = iter_slug.len() - 1;
+      if depth == 0 {
+        // Prefix Chapters 
+        // See: https://rust-lang.github.io/mdBook/format/summary.html#structure
+        
+      }
+      let mut subdir_path = slugs_to_paths.get(&iter_slug[0..iter_slug.len()-1]).cloned()
+        .unwrap_or_else(|| dir_path.clone());
+      let number = iter_slug.last().expect("must get default name");
+      let name = if name.is_empty() {
+        format!("{}", number)
+      } else {
+        format!("{} - {}", number, name)
+      };
+      let mut contents_name = iter_slug[1..].iter().fold(
+        iter_slug[0].to_string(),
+        |s, ii| format!("{}.{}",s, ii) 
+      );
+      match documentable {
+        Documentable::Doc(ref doc_name, ref contents) => {
+          subdir_path.push(name.clone());
+          subdir_path.set_extension("md");
+          let out_contents = format!("# {}  \n{}", name, contents);
+          fs::write(subdir_path.clone(), out_contents)
+            .with_context(|| format!("must write to file {:?}", subdir_path))?;          
+          if !doc_name.is_empty() {
+            contents_name.push_str(&format!(" - {}", doc_name));
+          }
+          summary_md_contents.push_str(
+            &format!(
+              "\n{}- [{}](<{}>)  ",
+              indent_for_depth(depth),
+              contents_name,
+              subdir_path.strip_prefix(dir_path.clone())
+                .with_context(|| format!("Must create subdir path for summary.md"))?
+                .to_string_lossy()
+            )
+          );
+        },
+        Documentable::BoxedDocDict(chapter_name, boxed_doc_dict) => {
+          // update path 
+          match &naming_scheme {
+            // Use the deepest-depth chapter name 
+            DirectoryNamingScheme::ChapterName => {
+              subdir_path.push(name.clone());
+            },
+            // Use the deepest-depth chapter number 
+            DirectoryNamingScheme::ChapterNumber => {
+              subdir_path.push(
+                iter_slug
+                  .iter()
+                  .last()
+                  .expect("must get last slug element")
+                  .to_string()
+              );
+            },
+          }
+          // create folder 
+          fs::create_dir_all(subdir_path.clone())
+            .with_context(|| format!("Must create subdir path {:?}", subdir_path))?;
+          slugs_to_paths.insert(iter_slug.clone(), subdir_path.to_path_buf());
+          // add chapter level-readme entry to summary 
+          let mut chapter_readme_path = subdir_path.clone();
+          chapter_readme_path.push(&README_NAME);
+          chapter_readme_path.set_extension("md");
+          contents_name.push_str(&format!(" - {}", chapter_name));
+          summary_md_contents.push_str(
+            &format!(
+              "\n{}- [{}](<{}>)  ",
+              indent_for_depth(depth),
+              contents_name,
+              chapter_readme_path.strip_prefix(dir_path.clone())
+                .with_context(|| format!("Must create relative chapter readme path from {:?}", dir_path))?
+                .to_string_lossy()
+            )
+          );
+          // create chapter-level readme
+          let mut chapter_readme_contents = format!("# {}", chapter_name);
+          
+          if boxed_doc_dict.1.len() > 0 {
+            // Chapter blurbs 
+            for (chapter_i, chapter_documentable) in boxed_doc_dict.0.iter() {
+              let mut forward_link: PathBuf = match &naming_scheme {
+                // Use the deepest-depth chapter name 
+                DirectoryNamingScheme::ChapterName => {
+                  let chapter_name = chapter_documentable.1.name();
+                  if chapter_name.is_empty() {
+                    format!("{}", chapter_i)
+                  } else {
+                    format!("{} - {}", chapter_i, chapter_name)
+                  }
+                },
+                // Use the deepest-depth chapter number 
+                DirectoryNamingScheme::ChapterNumber => {
+                  chapter_i.to_string()
+                },
+              }.into();
+              forward_link.set_extension("md");
+              let chapter_readme_blurb = boxed_doc_dict.1.iter()
+                .find(|(backlink, _blurb)| backlink == &iter_slug)
+                .map(|(_backlink, blurb)| blurb.to_string())
+                .unwrap_or_else(|| format!(
+                  "\n- [Skip to {} ({})](<{}>)  ", 
+                  chapter_documentable.0, 
+                  chapter_i,
+                  forward_link.to_string_lossy(),
+                )); 
+              
+              chapter_readme_contents.push_str(&format!(
+                "\n{}", 
+                chapter_readme_blurb
+              ));
+            }
+          }
+          fs::write(chapter_readme_path.clone(), chapter_readme_contents)
+            .with_context(|| format!("must write to summary.md file {:?}", chapter_readme_path))?;
+        },
+      }
+    }
+    
+    // create summary md 
+    let mut summary_md_path = dir_path.clone();
+    summary_md_path.push("SUMMARY");
+    summary_md_path.set_extension("md");
+    fs::write(summary_md_path.clone(), summary_md_contents)
+      .with_context(|| format!("must write to summary.md file {:?}", summary_md_path))?;
+    Ok(())
+  }
+  
+  /// Find the next available (unused) entry number in a documentation dictionary 
   pub fn find_next_entry_number(&self) -> usize {
     let mut n = 0usize;
     
@@ -666,4 +892,96 @@ pub fn load_global_docs_to_path (
   std::println!("docs_write_lock {:#?}", docs_write_lock );
   *docs_write_lock = doc_dict;
   Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn deep_iter() {
+    let mut d:DocDict = DocDict(
+      BTreeMap::new(), 
+      vec![
+        (vec![], String::from("A book about some things. Words sdrwo."), ),
+        (vec![], String::from("\nAnd some other things.")),
+      ]
+    );
+    
+    let slugs = vec![
+      vec![ 
+        (1, "buff".to_string()), 
+        (2, "aztec".to_string()), 
+        (3, "priestess".to_string()),
+      ],
+      vec![ 
+        (1, "buff".to_string()), 
+        (2, "aztec".to_string()), 
+        (4, "priest".to_string()),
+      ],
+      vec![ 
+        (1, "buff".to_string()), 
+        (2, "aztec".to_string()), 
+        (5, "eagle warrior".to_string()),
+      ],
+      vec![ 
+        (1, "buff".to_string()), 
+        (3, "maya".to_string()), 
+        (2, "princess".to_string()),
+      ],
+      vec![ 
+        (1, "buff".to_string()), 
+        (3, "maya".to_string()), 
+        (5, "prince".to_string()),
+      ],      
+    ];
+    let target_ord = vec![
+      slugs[0][0].clone(), 
+      slugs[0][1].clone(), 
+      slugs[0][2].clone(), 
+      slugs[1][2].clone(), 
+      slugs[2][2].clone(),
+      slugs[3][1].clone(), 
+      slugs[3][2].clone(), 
+      slugs[4][2].clone(),
+    ];
+    let target_num_slugs =  vec![
+      vec![1],
+      vec![1, 2],
+      vec![1, 2, 3],
+      vec![1, 2, 4],
+      vec![1, 2, 5],
+      vec![1, 3],
+      vec![1, 3, 2],
+      vec![1, 3, 5],
+    ];
+    for slug in slugs {
+      let (path_numbers, path_names): (Vec<_>, Vec<_>) = slug.iter().cloned().unzip();
+      let name = slug.last().unwrap().1.to_string();
+      d.add_path(
+        &None,
+        &Some(name.clone()),
+        Some(Documentable::Doc(name.clone(), "dummy".to_string())),
+        None, 
+        &path_names,
+        &path_numbers
+      ).expect("must add path");
+    }
+    for (i, (iter_slug, (name, documentable))) in d.deep_iter(None).enumerate() {
+      let target = &target_ord[i];
+      let target_num_slug = &target_num_slugs[i];
+      assert_eq!(
+        &target.1,
+        name,      
+        "{} th target name must match", i  
+      );
+      assert_eq!(
+        target_num_slug,
+        &iter_slug,      
+        "{} th target iter_slug must match", i  
+      );
+      
+      std::println!("{} {}", i, documentable);
+    }
+  }
 }
