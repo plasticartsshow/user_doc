@@ -373,8 +373,13 @@ fn record_doc_from_helper_attributes_and_str(
     chapter_num_slug,
   )
 )]
-/// Use this attribute macro to define user-facing documentation on a non-function item..
-/// - For more on the helper attributes this supports, see [HelperAttr]
+/// Use this attribute macro to define user-facing documentation on a non-function item.  
+/// # Supported derive helper attributes:
+/// - `chapter_blurb`: [ChapterBlurb](doc_data::HelperAttr::ChapterBlurb) - string literal 
+/// - `chapter_name`: [ChapterName](doc_data::HelperAttr::ChapterName) - string literal 
+/// - `chapter_name_slug`: [ChapterNameSlug](doc_data::HelperAttr::ChapterNameSlug) - comma-separated list of string literals 
+/// - `chapter_num`: [ChapterNum](doc_data::HelperAttr::ChapterNum) - integer literal
+/// - `chapter_num_slug`: [ChapterNumSlug](doc_data::HelperAttr::ChapterNumSlug) - comma-separated list of integer literals
 pub fn user_doc_item(
   item: TokenStream
 ) -> TokenStream {
@@ -397,7 +402,12 @@ pub fn user_doc_item(
 
 #[proc_macro_attribute]
 /// Use this attribute macro to define user-facing documentation on a function item.
-/// - For more on the arguments this supports, see [HelperAttr]
+/// # Supported Attribute Arguments
+/// - `chapter_blurb`: [ChapterBlurb](doc_data::HelperAttr::ChapterBlurb) - string literal 
+/// - `chapter_name`: [ChapterName](doc_data::HelperAttr::ChapterName) - string literal 
+/// - `chapter_name_slug`: [ChapterNameSlug](doc_data::HelperAttr::ChapterNameSlug) - comma-separated list of string literals 
+/// - `chapter_num`: [ChapterNum](doc_data::HelperAttr::ChapterNum) - integer literal
+/// - `chapter_num_slug`: [ChapterNumSlug](doc_data::HelperAttr::ChapterNumSlug) - comma-separated list of integer literals
 pub fn user_doc_fn(
   own_attr: TokenStream,
   item: TokenStream,

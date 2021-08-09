@@ -1,12 +1,31 @@
-//! Why define documentation in multiple places?  
+//! Don't define documentation in multiple places.  
+//!  
+//! The attribute [user_doc_fn](macro@doc_proc_macro::user_doc_fn) and derive 
+//! [user_doc_item](macro@doc_proc_macro::user_doc_item) macros 
+//! capture documentation from comments and make the contents
+//! available at runtime.  
+//!  
+//! Each macro invocation fills in nodes of a [DocDict](doc_data::DocDict) containing all the documentation 
+//! captured during a build. At runtime, a global copy of the tree generated at compile time is 
+//! available at [DOCS](doc_data::DOCS) via a RwLock.  
 //!
-//! The (attribute) [macro@user_doc_fn] and (derive) [macro@user_doc_item] macros 
-//! capture documentation from comments and make said documentation
-//! available at runtime. 
-//! 
 //! ---
+//!
+//! # The macro options  
+//! These macros are easily configured with the following helper attributes(for user_doc_item) / arguments (for user_doc_fn):
+//!
+//! - [chapter_blurb](doc_data::HelperAttr::ChapterBlurb): A string literal that will be added to 
+//! the containing chapter to describe this documentation.
+//! - [chapter_name](doc_data::HelperAttr::ChapterName): A string literal that names this chapter. 
+//! - [chapter_name_slug](doc_data::HelperAttr::ChapterNameSlug): A comma-separated list of string literals 
+//! that name a path of chapters. 
+//! - [chapter_num](doc_data::HelperAttr::ChapterNum): An integer literal corresponding to the number of this chapter.
+//! - [chapter_num_slug](doc_data::HelperAttr::ChapterNumSlug): A comma-separated list of integer literals
+//! corresponding to a path of chapters.
 //! 
-//! # How to use it on a function definition:  
+//! # How to use `user_doc_fn` on a _doc commented_ function definition:  
+//! Imagine that the documentation for the function `call_this_function` should 
+//! be visible to the user at runtime.
 //! ```ignore
 //! #[user_doc_fn(
 //!   chapter_num_slug(1, 3, 5),
@@ -16,15 +35,20 @@
 //!     "All Along the Weary M-5 Motorway",
 //!   ),
 //! )]
+//!  
+//!  
 //! /// The parenchyma isn't as stiff as usual. It looks almost floppy.
 //! /// I stick out a hand to touch it. It sucks my fingertips forward.
 //! /// When I pull my hand back, a hanging bridge of sap follows. 
 //! pub fn call_this_function() -> bool { true }
 //! ``` 
-//! 
+//!  
 //! The commented lines (from "The parenchyma" to "sap follows.") will be 
-//! captured and assigned a location in a tree hierarchy:  
-//! Chapters: 1. "A Slaying in Luton" > 3. "The Trouble About Ipswich" > 5. "All Along the Weary M-5 Motorway"  
+//! captured and assigned a location in a tree hierarchy with numbered/named nodes:  
+//! - 1. "A Slaying in Luton"   
+//! - 3. "The Trouble About Ipswich"  
+//! - 5. "All Along the Weary M-5 Motorway"  
+//!  
 //! So that at runtime:  
 //! ```ignore
 //! doc_data::load_global_docs_to_path(
@@ -32,19 +56,25 @@
 //! ).expect("must load docs from path");
 //! let docs = &*doc_data::DOCS;
 //! let docs_read_lock = docs.read().expect("must get read guard on global docs");
-//! assert_eq!(
-//!   docs_read_lock.get_entry_at_numeric_path(&[1,3,5]).expect("must find test entry").1,
+//!  
+//!  
+//!  assert_eq!(
+//!   docs_read_lock.get_entry_at_numeric_path(
+//!     &[1,3,5] // corresponds to the `chapter_num_slug` argument in the macro call
+//!   ).expect("must find test entry").1,
 //!   " The parenchyma isn\\'t as stiff as usual. It looks almost floppy.\
 //!     \n I stick out a hand to touch it. It sucks my fingertips forward.\
 //!     \n When I pull my hand back, a hanging bridge of sap follows.",
 //! );
 //! ``` 
-//!
-//! The doc comment has been inserted in a tree structure. Wow.
-//!
-//! ## How to use it on a struct or enum definition.
-//! When working with structs or enums, the outer attribute commentss are NOT captured:
-//!
+//!  
+//! The doc comment has been inserted in a tree structure. wow. Now, it can be shown to the user 
+//! at runtime.  
+//!  
+//! # How to use `user_doc_item` on a _doc-commented_ struct or enum definition.
+//! Imagine the same usage case, but this time, the documentation is attached to struct or enum definition.  
+//! When working with structs or enums, the outer attribute comments are NOT captured.  
+//!  
 //! ```ignore
 //! #[derive(user_doc_item, Clone, Debug, PartialEq, Eq)]
 //! /// This comment WILL NOT BE captured for user docs.
@@ -60,25 +90,24 @@
 //!   /// "Oh," I said as casually as I could, "It says you're to let me through. But don't let anyone else through after me. It says that too.""
 //!   Kid(u16),
 //! }
+//!  
+//!  
 //! let docs = &*user_doc::DOCS;
 //! let docs_read_lock = docs.read().expect("must get read guard on global docs");
 //! std::println!("docs_read_lock {:?} {:#?}", std::time::Instant::now(), *docs_read_lock );
 //! assert_eq!(
-//!   docs_read_lock.get_entry_at_numeric_path(&[1,3,4]).expect("must find test entry").0,
+//!   docs_read_lock.get_entry_at_numeric_path(&
+//!     [1,3,4], // corresponds to the `chapter_num_slug` helper attribute in the macro call
+//!   ).expect("must find test entry").0,
 //!   String::from("The House of Almond Blossoms"),
 //! );
-//! ```
-//! Here, the `chapter_num_slug` helper attribute has overriden the `chapter_num` attribute. 
-//! Slug-style (number or name) attributes and arguments will always take precedence.
-//!
-//! # How to use it with `mdbook`
-//!
-//! Call the [doc_data::DocDict::expand_into_mdbook_dirs_at_path()] method on a DocDict generated 
-//! from doc comments. This will extract the comments from the DocDict into a directory structure 
-//! that can be used with mdbook.
-//!
-//! ### For instance:
-//! To expand the global doc store into a hierarchy at the path "tests/scratch/src", do:
+//! ```  
+//! Here, the `chapter_num_slug` helper attribute has overriden the `chapter_num` attribute.  
+//! Slug-style (number or name) attributes and arguments will always take precedence.  
+//!  
+//! # How to prepare a DocDict for use with `mdbook`
+//!  
+//! To expand the global doc store into a hierarchy at the path "tests/scratch/src", do:  
 //! ```ignore
 //! user_doc::load_global_docs_to_path(
 //!   None, None
@@ -90,10 +119,13 @@
 //!    "tests/scratch/src",
 //! ).expect("must expand docs into dirs");
 //! ```
-
-
-extern crate doc_proc_macro;
-pub use doc_proc_macro::*;
-
+//! The directory `tests/scratch/src` will be filled with documentation corresponding to 
+//! [mdbook](https://crates.io/crates/mdbook) format.  
+//! 
+//! # Note
+//! These macros use a temporary directory to persist data from compile-time to runtime.  
+//! Do not store sensitive information in doc comments captured with these macros.
 extern crate doc_data;
 pub use doc_data::*;
+extern crate doc_proc_macro;
+pub use doc_proc_macro::*;
