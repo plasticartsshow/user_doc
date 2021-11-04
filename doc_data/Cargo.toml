@@ -1,12 +1,12 @@
 [package]
 name = "user_doc-doc_data"
-version = "0.0.1"
-edition = "2018"
+version = "0.0.11"
+edition = "2021"
 authors = ["Plastic Arts Show <plastic.arts.show@gmail.com>"]
 description = "Metadata describing user-facing documentation."
 keywords = ["user", "documentation"]
 categories = ["development-tools"]
-license = "Apache-2.0"
+license = "Apache-2.0 OR MIT"
 repository = "https://github.com/plasticartsshow/user_doc"
 
 [badges]

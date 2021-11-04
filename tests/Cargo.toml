@@ -1,12 +1,12 @@
 [package]
 name = "user_doc-tests"
-version = "0.0.1"
-edition = "2018"
+version = "0.0.11"
+edition = "2021"
 authors = ["Plastic Arts Show <plastic.arts.show@gmail.com>"]
 description = "Tests for user_doc."
 keywords = ["user", "documentation"]
 categories = ["development-tools"]
-license = "Apache-2.0"
+license = "Apache-2.0 OR MIT"
 repository = "https://github.com/plasticartsshow/user_doc"
 
 [badges]
@@ -17,12 +17,8 @@ github = { repository = "plasticartsshow/user_doc" }
 [dependencies.doc_data]
 package = "user_doc-doc_data"
 path = "../doc_data"
-version = "0.0.1" # same as main version
-# [dependencies.doc_proc_macro]
-# package = "user_doc-doc_proc_macro"
-# path = "../doc_proc_macro"
-# version = "0.0.1" # same as main version
+version = "0.0.11" # same as main version
 [dependencies.user_doc]
 package = "user_doc"
 path = "../user_doc"
-version = "0.0.1" # same as main version
+version = "0.0.11" # same as main version
