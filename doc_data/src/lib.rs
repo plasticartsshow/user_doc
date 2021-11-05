@@ -878,7 +878,7 @@ pub fn load_global_docs_to_path (
     );
   } 
   let complete_path: PathBuf = dir_path.join(file_name);
-  std::println!("complete_path {:?}", complete_path );
+  // std::println!("complete_path {:?}", complete_path );
   let file = File::open(complete_path)?;
   let file_reader = BufReader::new(file); 
   let docs = &*DOCS;
@@ -891,7 +891,7 @@ pub fn load_global_docs_to_path (
       anyhow::anyhow!(format!("{:#?}", poison_error))
     })
     .with_context(|| "Must get write lock on DOCS")?;
-  std::println!("docs_write_lock {:#?}", docs_write_lock );
+  // std::println!("docs_write_lock {:#?}", docs_write_lock );
   *docs_write_lock = doc_dict;
   Ok(())
 }
