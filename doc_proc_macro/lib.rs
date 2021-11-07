@@ -51,6 +51,7 @@ fn paths_eq(
 /// Parsing the outer attributes of any Rust item produces ParsedOuterAttrs.
 /// The item is optional. 
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 struct ParsedOuterAttrs {
   /// Optional visibility modifier 
   pub vis_opt: Option<Visibility>,
