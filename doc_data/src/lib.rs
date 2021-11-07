@@ -538,17 +538,20 @@ impl DocDict {
     Ok(())
   }
   
-  /// Produce a depth-first, _immutable_ iterator over the entries in this documentation dictionary
+  /// Produce a depth-first, _immutable_ iterator over the entries.
+  ///
+  /// - The iterator item includes a slug of chapters, the current entry node, 
+  /// and the number of sub entries for the current  node
   /// The iterator will produce entries for the chapters AS WELL AS entries for the subchapters of
   /// those chapters. 
   pub fn deep_iter(
     &self, 
     start_slug_opt: Option<Vec<usize>>,
   ) -> std::collections::vec_deque::IntoIter<
-    (Vec<usize>, &DocDictEntryValueType)
+    (Vec<usize>, &DocDictEntryValueType, usize)
   > {
     use std::collections::VecDeque;
-    let mut vv: VecDeque<(Vec<usize>, &DocDictEntryValueType)> = VecDeque::new();
+    let mut vv: VecDeque<(Vec<usize>, &DocDictEntryValueType, usize)> = VecDeque::new();
     let start_slug = start_slug_opt.unwrap_or_default();
     if !self.0.is_empty() {
       // go through each root item and check what it contains
@@ -556,10 +559,12 @@ impl DocDict {
         // record a new slug for this position
         let mut iter_slug = start_slug.clone();
         iter_slug.push(*k);
-        vv.push_back((iter_slug.clone(), entry)); 
         if let Documentable::BoxedDocDict(_, dd) = &entry.1 {
+          vv.push_back((iter_slug.clone(), entry, (*dd).len())); 
           // add the descent items for this node 
-          vv.extend(dd.deep_iter(Some(iter_slug.clone())))
+          vv.extend(dd.deep_iter(Some(iter_slug)))
+        } else {
+          vv.push_back((iter_slug, entry, 0usize)); 
         }
       }
     }
@@ -591,7 +596,7 @@ impl DocDict {
         summary_md_contents.push_str(&format!("\n{}  ", chapter_summary_line.1));
       }
     }
-    for (iter_slug, (name, documentable)) in self.deep_iter(None) {
+    for (iter_slug, (name, documentable), _sub_entries_len) in self.deep_iter(None) {
       let depth = iter_slug.len() - 1;
       if depth == 0 {
         // Prefix Chapters 
@@ -957,6 +962,16 @@ mod tests {
       vec![1, 3, 2],
       vec![1, 3, 5],
     ];
+    let target_sub_entries_lens =  vec![
+      2,
+      3,
+      0,
+      0,
+      0,
+      2,
+      0,
+      0,
+    ];
     for slug in slugs {
       let (path_numbers, path_names): (Vec<_>, Vec<_>) = slug.iter().cloned().unzip();
       let name = slug.last().unwrap().1.to_string();
@@ -969,9 +984,10 @@ mod tests {
         &path_numbers
       ).expect("must add path");
     }
-    for (i, (iter_slug, (name, documentable))) in d.deep_iter(None).enumerate() {
+    for (i, (iter_slug, (name, documentable), sub_entries_len)) in d.deep_iter(None).enumerate() {
       let target = &target_ord[i];
       let target_num_slug = &target_num_slugs[i];
+      let target_sub_entries_len = target_sub_entries_lens[i];
       assert_eq!(
         &target.1,
         name,      
@@ -980,7 +996,12 @@ mod tests {
       assert_eq!(
         target_num_slug,
         &iter_slug,      
-        "{} th target iter_slug must match", i  
+        "{} th target slug must match", i  
+      );
+      assert_eq!(
+        target_sub_entries_len,
+        sub_entries_len,
+        "{} th target sub entries length must match", i  
       );
       
       std::println!("{} {}", i, documentable);
