@@ -24,6 +24,7 @@ use syn::{
   Item,
   ItemEnum,
   ItemStruct,
+  LitStr,
   parse_str,
   parse_macro_input,
   Path,
@@ -337,10 +338,7 @@ fn record_doc_from_helper_attributes_and_str(
     Ok(()) => {
       if do_save {
         // std::println!("saving to default path and file", );
-        match doc_data::save_global_docs_to_path(
-          None, 
-          None,
-        ) {
+        match doc_data::persist_docs() {
           Ok(()) => {
             Ok(())
           }
@@ -436,4 +434,30 @@ pub fn user_doc_fn(
     },
     Err(err) => err.into_compile_error().into()
   }
+}
+
+#[proc_macro]
+/// Define a file name for compile-to-runtime persistence.  
+///
+/// - If the input is not a (non-empty) string literal, it will be ignored.  
+/// - If this macro has been invoked once during the compile, all subsequent invocations 
+/// will be ignored.  
+/// - An empty TokenStream is retured 
+///  
+/// Note: This entire library works by persisting data captured at compile time 
+/// to a file that is then loaded at runtime at the caller's discretion. In a workspace 
+/// where multiple sub-packages are capturing data, this macro ought be invoked in 
+/// each sub-package to set a unique file name for said sub-package's capture data.
+pub fn set_persistence_file_name(input: TokenStream) -> TokenStream {
+  let lit_str = parse_macro_input!(input as LitStr);
+  let value = lit_str.value();
+  if !value.is_empty() {
+    if let Ok(mut custom_output_file_name_write) = CUSTOM_OUTPUT_FILE_NAME.try_write() {
+      let _ = custom_output_file_name_write
+        .get_or_insert(value);
+      // println!("custom value set to {:#?}", custom_output_file_name_write)
+    } 
+  } 
+  
+  TokenStream::new()
 }

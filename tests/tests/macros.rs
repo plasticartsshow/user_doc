@@ -95,9 +95,7 @@ fn must_extract_doc_comments () {
     "Other non-'user_doc' derives must work as intended without interference"
   );
   // 
-  user_doc::load_global_docs_to_path(
-    None, None
-  ).expect("must load docs from path");
+  user_doc::load_global_docs(None, None).expect("must load global docs into runtime");
   let docs = &*user_doc::DOCS;
   let docs_read_lock = docs.read().expect("must get read guard on global docs");
   

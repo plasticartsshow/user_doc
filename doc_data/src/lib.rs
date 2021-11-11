@@ -31,6 +31,10 @@ const END: &str = "  \n";
 pub static OUTPUT_DIR_PATH: &str = "user_doc";
 /// Output file name for persisting data between compilation-time and run-time
 static OUTPUT_FILE_NAME: &str = "user_doc.json";
+/// Custom output file path for persisting data 
+pub static CUSTOM_OUTPUT_FILE_NAME: Lazy<RwLock<Option<String>>> = Lazy::new(|| 
+  RwLock::new(None)
+);
 /// The repository of all active docs 
 pub static DOCS: Lazy<RwLock<DocDict>> = Lazy::new(|| {
   RwLock::new(DocDict(BTreeMap::new(), Vec::new()))
@@ -389,8 +393,8 @@ impl Documentable {
 pub type DocDictEntryValueType = (String, Documentable);
 /// A tree-dictionary of docs 
 pub type DocDictTree = BTreeMap<usize, DocDictEntryValueType>;
-#[derive(Clone, Serialize, Deserialize, Debug, Eq, Ord, PartialEq, PartialOrd)]
-/// A dictionary of doc
+#[derive(Clone, Default, Serialize, Deserialize, Debug, Eq, Ord, PartialEq, PartialOrd)]
+/// A (possibly-nested) dictionary of docs
 pub struct DocDict(
   /// The dictionary tree 
   pub DocDictTree, 
@@ -504,7 +508,7 @@ impl DocDict {
           Some(chapter_num), 
           overwrite_opt
         )?;
-        // add the chapter blurb to the parent chapter text 
+        // add the backlink and add - chapter blurb to the parent chapter text 
         if let Some(ref chapter_blurb) = chapter_blurb_opt {
           let back_link = path_numbers.to_vec();
           subdict.1.push((
@@ -735,7 +739,7 @@ impl DocDict {
     }
     n
   }
-
+  
   #[allow(clippy::unnecessary_unwrap)]
   /// Get an immutable reference to an entry at the specified numeric path. Returns `None` if the
   /// a path is not present.
@@ -811,35 +815,48 @@ impl core::ops::DerefMut for DocDict {
 }
 
 
+/// Get the persistence directory path
+pub fn get_persistence_dir_path () -> PathBuf {
+  std::env::temp_dir().join(OUTPUT_DIR_PATH)
+}
+
+/// Get the full persistence directory+file path
+pub fn get_persistence_file_path () -> anyhow::Result<PathBuf> {
+  CUSTOM_OUTPUT_FILE_NAME
+    .read()
+    .map_or_else(
+      |_| anyhow::bail!("Must get read lock on CUSTOM_OUTPUT_FILE_NAME"),
+      |custom_output_file_name_lock| {
+        Ok(get_persistence_dir_path().join(
+          custom_output_file_name_lock
+            .as_ref()
+            .cloned()
+            .unwrap_or_else(|| OUTPUT_FILE_NAME.to_string())
+        ))    
+      }
+    )
+}
+
 /// Make a string from a DocDict key 
 pub fn make_string_key(num: usize, name: String) -> String {
   format!("({})({})", num, name)
 }
 
-/// Save the global store to a file path at the given directory path
-/// This is necessary because the global store cannot persist between compilation time and runtime
+/// Save the global store to a file
+///
+/// - This is necessary because the global store cannot persist between compilation time and runtime
+/// - If no directory is specified it will create a directory that includes the name of the 
+/// crate from which the proc macro is called 
 /// See [OUTPUT_DIR_PATH]
-pub fn save_global_docs_to_path(
-  dir_path_str_opt: Option<String>,
-  file_name_str_opt: Option<String>,
-  // overwrite_opt: Option<bool>,
-) -> anyhow::Result<()> {
+pub fn persist_docs() -> anyhow::Result<()> {
   use anyhow::Context;
-  let dir_path: PathBuf = if let Some(dir_path_str) = dir_path_str_opt {
-    dir_path_str.into()
-  } else {
-    std::env::temp_dir().join(OUTPUT_DIR_PATH)
-  };
-  // let dir_path_str: &str = &dir_path_str_opt.unwrap_or(OUTPUT_DIR_PATH.to_string());
-  // let dir_path = Path::new(dir_path_str);
-  let file_name: &str = &file_name_str_opt.unwrap_or_else(|| OUTPUT_FILE_NAME.to_string());
-  // let overwrite = overwrite_opt.unwrap_or_default();
+  let dir_path = get_persistence_dir_path();
   // Create the path if it doesn't exist
   if !dir_path.is_dir() {
     fs::create_dir_all(dir_path.clone())?;
   } 
-  let complete_path = dir_path.join(file_name);
-  // std::println!("saving to {:?}", complete_path);
+  let complete_path: PathBuf = get_persistence_file_path()?;
+  std::println!("saving to {:?}", complete_path);
   let file = File::create(complete_path)?;
   let docs = &*DOCS;
   let docs_read_lock = docs.read()
@@ -847,6 +864,7 @@ pub fn save_global_docs_to_path(
       anyhow::anyhow!(format!("{:#?}", poison_error))
     })
     .with_context(|| "Must get read lock on DOCS")?;
+  std::println!("{:#?}", docs_read_lock );
   serde_json::to_writer(file, &*docs_read_lock)
     .with_context(|| {
       format!(
@@ -858,32 +876,33 @@ pub fn save_global_docs_to_path(
 }
 
 /// Load the docs from a file path 
+///
+/// - If given a DocDict, it will load into that DocDict. Otherwise, it will load
+/// into the global doc dict, overwriting  
 /// This is necessary because the global store cannot persist between compilation time 
 /// and runtime.
-pub fn load_global_docs_to_path (
-  dir_path_str_opt: Option<String>,
-  file_name_str_opt: Option<String>,
+pub fn load_global_docs (
+  file_name_opt: Option<&str>,
+  doc_dict_opt: Option<&mut DocDict>,
 ) -> anyhow::Result<()> {
   use anyhow::Context;
-  // let dir_path_str: &str = &dir_path_str_opt.unwrap_or("./".to_string());
-  let dir_path: PathBuf = if let Some(dir_path_str) = dir_path_str_opt {
-    dir_path_str.into()
-  } else {
-    std::env::temp_dir().join(OUTPUT_DIR_PATH)
-  };
-  let file_name: &str = &file_name_str_opt.unwrap_or_else(|| OUTPUT_FILE_NAME.to_string());
-  // let overwrite = overwrite_opt.unwrap_or_default();
-  // Create the path if it doesn't exist
-  if !dir_path.is_dir() {
+  let complete_path: PathBuf = 
+    if let Some(file_name) = file_name_opt {
+      get_persistence_dir_path()
+        .join(file_name)
+    } else {
+      get_persistence_file_path()?
+    };
+    // Fail if the path doesn't exist
+  if !complete_path.is_file() {
     anyhow::bail!(
       format!(
-        "The target docs directory ({:?}) is not a directory",
-        dir_path
+        "The target docs directory ({:?}) is not a file",
+        complete_path
       )
     );
   } 
-  let complete_path: PathBuf = dir_path.join(file_name);
-  // std::println!("complete_path {:?}", complete_path );
+  std::println!("loading global docs from complete_path {:?}", complete_path );
   let file = File::open(complete_path)?;
   let file_reader = BufReader::new(file); 
   let docs = &*DOCS;
@@ -891,13 +910,20 @@ pub fn load_global_docs_to_path (
     .with_context(|| {
       "Must read JSON from file into docs".to_string()
     })?;
-  let mut docs_write_lock = docs.write()
-    .map_err(|poison_error| {
-      anyhow::anyhow!(format!("{:#?}", poison_error))
-    })
-    .with_context(|| "Must get write lock on DOCS")?;
-  // std::println!("docs_write_lock {:#?}", docs_write_lock );
-  *docs_write_lock = doc_dict;
+  match doc_dict_opt {
+    Some(existing_doc_dict) => {
+      *existing_doc_dict = doc_dict;
+    }
+    None => {
+      let mut docs_write_lock = docs.write()
+      .map_err(|poison_error| {
+        anyhow::anyhow!(format!("{:#?}", poison_error))
+      })
+      .with_context(|| "Must get write lock on DOCS")?;
+      // std::println!("docs_write_lock {:#?}", docs_write_lock );
+      *docs_write_lock = doc_dict;
+    }
+  }
   Ok(())
 }
 

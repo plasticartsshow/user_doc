@@ -51,7 +51,7 @@
 //!  
 //! So that at runtime:  
 //! ```ignore
-//! doc_data::load_global_docs_to_path(
+//! doc_data::load_global_docs(
 //!   None, None
 //! ).expect("must load docs from path");
 //! let docs = &*doc_data::DOCS;
@@ -109,7 +109,7 @@
 //!  
 //! To expand the global doc store into a hierarchy at the path "tests/scratch/src", do:  
 //! ```ignore
-//! user_doc::load_global_docs_to_path(
+//! user_doc::load_global_docs(
 //!   None, None
 //! ).expect("must load docs from path");
 //! let docs = &*user_doc::DOCS;
@@ -122,9 +122,42 @@
 //! The directory `tests/scratch/src` will be filled with documentation corresponding to 
 //! [mdbook](https://crates.io/crates/mdbook) format.  
 //! 
-//! # Note
+//! 
+//! # How to use in a workspace project 
+//! 
+//! When capturing documentation data in a workspace with multiple sub-projects,
+//! there's only a single instance of the global documentation capture store.
+//! As such, documents captured from the last sub-project that gets compiled 
+//! tend to overwrite those from those previously captured. 
+//! 
+//! ## Workaround 
+//! Just specify a different file name for each capture using the 
+//! `set_persistence_file_name` macro. Then, supply said file name 
+//! to the `load_global_docs` function call at runtime. 
+//!
+//! Given a project tree that looks something like:  
+//! ```ignore
+//! some_workspace
+//!   └ sub_package_a
+//!       ┕ src/lib.rs 
+//!   └ sub_package_b
+//!       ┕ src/lib.rs 
+//! ```  
+//!
+//! 1. Invoke `set_persistence_file_name("docs_a_or_whatever")` in 
+//! `sub_package_a/src/lib.rs`.
+//! 2. Invoke `set_persistence_file_name("docs_b_or_whatever")` in 
+//! `sub_package_b/src/lib.rs`  
+//! 3. Elsewhere, to load docs from both packages into new dictionaries:
+//! ```ignore 
+//!   let mut dict_a = DocDict::default();
+//!   load_global_docs("docs_a_or_whatever", Some(&mut dict_a));
+//!   let mut dict_b = DocDict::default();
+//!   load_global_docs("docs_b_or_whatever", Some(&mut dict_b));
+//! ``` 
+//! # Critical Note
 //! These macros use a temporary directory to persist data from compile-time to runtime.  
-//! Do not store sensitive information in doc comments captured with these macros.
+//! Do not store sensitive information (keys, passwords, etc.) in doc comments captured with these macros.
 extern crate doc_data;
 pub use doc_data::*;
 extern crate doc_proc_macro;
