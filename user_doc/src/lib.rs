@@ -1,5 +1,6 @@
-//! Don't define documentation in multiple places.  
-//!  
+//! - Why: To stop defining documentation in multiple places. 
+//! - How: `user_doc` copies tagged Rust doc comments to runtime-accessible constants.
+//!   
 //! The attribute [user_doc_fn](macro@doc_proc_macro::user_doc_fn) and derive 
 //! [user_doc_item](macro@doc_proc_macro::user_doc_item) macros 
 //! capture documentation from comments and make the contents
