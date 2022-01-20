@@ -1,6 +1,6 @@
 [package]
 name = "user_doc-doc_proc_macro"
-version = "0.1.01"
+version = "0.1.1"
 edition = "2021"
 authors = ["Plastic Arts Show <plastic.arts.show@gmail.com>"]
 description = "Attribute and derive procedural macros for generating user-facing documentation."
@@ -28,4 +28,4 @@ syn = { version = "1.0.74", features = ["full", "parsing"] }
 [dependencies.doc_data]
 package = "user_doc-doc_data"
 path = "../doc_data"
-version = "0.1.01" # same as main version
+version = "0.1.1" # same as main version
