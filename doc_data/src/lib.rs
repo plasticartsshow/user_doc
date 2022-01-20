@@ -856,7 +856,7 @@ pub fn persist_docs() -> anyhow::Result<()> {
     fs::create_dir_all(dir_path.clone())?;
   } 
   let complete_path: PathBuf = get_persistence_file_path()?;
-  std::println!("saving to {:?}", complete_path);
+  // std::println!("saving to {:?}", complete_path);
   let file = File::create(complete_path)?;
   let docs = &*DOCS;
   let docs_read_lock = docs.read()
@@ -864,7 +864,7 @@ pub fn persist_docs() -> anyhow::Result<()> {
       anyhow::anyhow!(format!("{:#?}", poison_error))
     })
     .with_context(|| "Must get read lock on DOCS")?;
-  std::println!("{:#?}", docs_read_lock );
+  // std::println!("{:#?}", docs_read_lock );
   serde_json::to_writer(file, &*docs_read_lock)
     .with_context(|| {
       format!(
