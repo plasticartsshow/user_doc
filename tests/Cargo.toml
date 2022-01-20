@@ -1,6 +1,6 @@
 [package]
 name = "user_doc-tests"
-version = "0.1.0"
+version = "0.1.01"
 edition = "2021"
 authors = ["Plastic Arts Show <plastic.arts.show@gmail.com>"]
 description = "Tests for user_doc."
@@ -17,8 +17,8 @@ github = { repository = "plasticartsshow/user_doc" }
 [dependencies.doc_data]
 package = "user_doc-doc_data"
 path = "../doc_data"
-version = "0.1.0" # same as main version
+version = "0.1.01" # same as main version
 [dependencies.user_doc]
 package = "user_doc"
 path = "../user_doc"
-version = "0.1.0" # same as main version
+version = "0.1.01" # same as main version
