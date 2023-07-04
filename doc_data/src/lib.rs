@@ -483,7 +483,7 @@ impl DocDict {
       let chapter_num = path_numbers.get(i).cloned().unwrap_or_else(|| {
         subdict.find_next_entry_number()
       });
-      let chapter_name = path_names.get(i).or_else(|| name_opt.as_ref()).cloned().unwrap_or_default();
+      let chapter_name = path_names.get(i).or(name_opt.as_ref()).cloned().unwrap_or_default();
       let empty_chapter = Documentable::BoxedDocDict(
         chapter_name.clone(), 
         Box::new(
@@ -664,7 +664,7 @@ impl DocDict {
           slugs_to_paths.insert(iter_slug.clone(), subdir_path.to_path_buf());
           // add chapter level-readme entry to summary 
           let mut chapter_readme_path = subdir_path.clone();
-          chapter_readme_path.push(&README_NAME);
+          chapter_readme_path.push(README_NAME);
           chapter_readme_path.set_extension("md");
           contents_name.push_str(&format!(" - {}", chapter_name));
           summary_md_contents.push_str(
@@ -760,7 +760,7 @@ impl DocDict {
             },
             Documentable::BoxedDocDict(_name, ref boxed_sub_dict) => {
               // point to the next depth for further traversal
-              map_pointer = &*boxed_sub_dict;
+              map_pointer = boxed_sub_dict;
             },
           }
         }
@@ -853,7 +853,7 @@ pub fn persist_docs() -> anyhow::Result<()> {
   let dir_path = get_persistence_dir_path();
   // Create the path if it doesn't exist
   if !dir_path.is_dir() {
-    fs::create_dir_all(dir_path.clone())?;
+    fs::create_dir_all(dir_path)?;
   } 
   let complete_path: PathBuf = get_persistence_file_path()?;
   // std::println!("saving to {:?}", complete_path);

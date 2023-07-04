@@ -187,7 +187,7 @@ impl ParsedOuterAttrs{
   ) -> Vec<String> {
     outer_attrs.iter()
     .filter_map(|Attribute{path, ref tokens, ..}| {
-      if paths_eq(path, &*Self::DOC_PATH) {
+      if paths_eq(path, &Self::DOC_PATH) {
         match tokens.clone().into_iter().nth(1) {
           Some(TokenTree::Literal(literal)) => {
             Some(
