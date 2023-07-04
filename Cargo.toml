@@ -28,10 +28,13 @@ serde_json = { version = "1.0.66" }
 
 [workspace.dependencies.doc_data]
 package = "user_doc-doc_data"
+version = "1.0.1"
 path = "./doc_data"
 [workspace.dependencies.user_doc]
 package = "user_doc"
+version = "1.0.1"
 path = "./user_doc"
 [workspace.dependencies.doc_proc_macro]
 package = "user_doc-doc_proc_macro"
+version = "1.0.1"
 path = "./doc_proc_macro"
