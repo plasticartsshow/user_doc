@@ -1,13 +1,10 @@
 [package]
 name = "user_doc"
-version = "0.1.2"
 edition = "2021"
-authors = ["Plastic Arts Show <plastic.arts.show@gmail.com>"]
+version = "0.1.2"
 description = "Attribute and derive procedural macros for generating user-facing documentation."
 keywords = ["user", "documentation"]
 categories = ["development-tools"]
-license = "Apache-2.0 OR MIT"
-repository = "https://github.com/plasticartsshow/user_doc"
 
 [badges]
 maintenance = { status = "experimental" }
@@ -18,13 +15,6 @@ github = { repository = "plasticartsshow/user_doc", workflow = "Rust" }
 path = "src/lib.rs"
 
 [dependencies]
-chrono = {version = "0.4.19"}
-
-[dependencies.doc_data]
-package = "user_doc-doc_data"
-path = "../doc_data"
-version = "0.1.1" # same as main version
-[dependencies.doc_proc_macro]
-package = "user_doc-doc_proc_macro"
-path = "../doc_proc_macro"
-version = "0.1.1" # same as main version
+chrono.workspace = true 
+doc_data.workspace = true
+doc_proc_macro.workspace = true

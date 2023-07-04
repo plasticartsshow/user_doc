@@ -2,12 +2,9 @@
 name = "user_doc-doc_data"
 version = "0.1.2"
 edition = "2021"
-authors = ["Plastic Arts Show <plastic.arts.show@gmail.com>"]
 description = "Metadata describing user-facing documentation."
 keywords = ["user", "documentation"]
 categories = ["development-tools"]
-license = "Apache-2.0 OR MIT"
-repository = "https://github.com/plasticartsshow/user_doc"
 
 [badges]
 maintenance = { status = "experimental" }
@@ -18,9 +15,9 @@ github = { repository = "plasticartsshow/user_doc" }
 path = "src/lib.rs"
 
 [dependencies]
-anyhow = { version = "1.0.38" }
-once_cell = { version="1.7.2" }
-serde = { version = "1.0.127", features = ["derive"] }
-serde_json = { version = "1.0.66", features = ["preserve_order"] }
-strum = { version ="0.20.0", features = ["derive"] }
-syn = { version = "1.0.74", features = ["full", "parsing"] }
+anyhow.workspace = true
+once_cell.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true, features = ["preserve_order"] }
+strum = { workspace = true, features = ["derive"] }
+syn = { workspace = true, features = ["full", "parsing"] }

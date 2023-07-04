@@ -1,7 +1,37 @@
 [workspace]
+
 members = [
   "doc_proc_macro",
   "doc_data",
   "user_doc",
   "tests",
 ]
+
+[workspace.package]
+version = "0.1.2"
+edition = "2021"
+authors = ["Plastic Arts Show <plastic.arts.show@gmail.com>"]
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/plasticartsshow/user_doc"
+
+[workspace.dependencies]
+anyhow = { version = "1.0.38" }
+chrono = {version = "0.4.19"}
+once_cell = { version="1.7.2" }
+quote = { version = "1.0.9" }
+strum = { version ="0.20.0" }
+syn = { version = "1.0.74" }
+serde = { version = "1.0.127" }
+serde_json = { version = "1.0.66" }
+
+
+
+[workspace.dependencies.doc_data]
+package = "user_doc-doc_data"
+path = "./doc_data"
+[workspace.dependencies.user_doc]
+package = "user_doc"
+path = "./user_doc"
+[workspace.dependencies.doc_proc_macro]
+package = "user_doc-doc_proc_macro"
+path = "./doc_proc_macro"

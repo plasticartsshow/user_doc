@@ -1,24 +1,16 @@
 [package]
 name = "user_doc-tests"
-version = "0.1.2"
 edition = "2021"
-authors = ["Plastic Arts Show <plastic.arts.show@gmail.com>"]
+version = "0.1.2"
 description = "Tests for user_doc."
 keywords = ["user", "documentation"]
 categories = ["development-tools"]
-license = "Apache-2.0 OR MIT"
-repository = "https://github.com/plasticartsshow/user_doc"
 
 [badges]
 maintenance = { status = "experimental" }
 github = { repository = "plasticartsshow/user_doc" }
 
 
-[dependencies.doc_data]
-package = "user_doc-doc_data"
-path = "../doc_data"
-version = "0.1.1" # same as main version
-[dependencies.user_doc]
-package = "user_doc"
-path = "../user_doc"
-version = "0.1.1" # same as main version
+[dependencies]
+doc_data.workspace = true 
+user_doc.workspace = true 
