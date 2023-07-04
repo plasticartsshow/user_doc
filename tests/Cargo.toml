@@ -1,6 +1,6 @@
 [package]
 name = "user_doc-tests"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 authors = ["Plastic Arts Show <plastic.arts.show@gmail.com>"]
 description = "Tests for user_doc."
