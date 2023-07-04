@@ -1,6 +1,6 @@
 [package]
 name = "user_doc-doc_data"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2021"
 description = "Metadata describing user-facing documentation."
 keywords = ["user", "documentation"]
