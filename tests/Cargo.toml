@@ -5,6 +5,7 @@ version = "1.0.0"
 description = "Tests for user_doc."
 keywords = ["user", "documentation"]
 categories = ["development-tools"]
+license = "Apache-2.0 OR MIT"
 
 [badges]
 maintenance = { status = "experimental" }

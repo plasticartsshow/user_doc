@@ -5,6 +5,7 @@ edition = "2021"
 description = "Metadata describing user-facing documentation."
 keywords = ["user", "documentation"]
 categories = ["development-tools"]
+license = "Apache-2.0 OR MIT"
 
 [badges]
 maintenance = { status = "experimental" }
