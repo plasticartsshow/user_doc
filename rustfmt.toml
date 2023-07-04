@@ -1,0 +1,4 @@
+tab_spaces = 2
+# fn_single_line = true # only available on nightly
+fn_params_layout = "Vertical"
+

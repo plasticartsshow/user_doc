@@ -1,13 +1,13 @@
-//! - Why: To stop defining documentation in multiple places. 
+//! - Why: To stop defining documentation in multiple places.
 //! - How: `user_doc` copies tagged Rust doc comments to runtime-accessible constants.
 //!   
-//! The attribute [user_doc_fn](macro@doc_proc_macro::user_doc_fn) and derive 
-//! [user_doc_item](macro@doc_proc_macro::user_doc_item) macros 
+//! The attribute [user_doc_fn](macro@doc_proc_macro::user_doc_fn) and derive
+//! [user_doc_item](macro@doc_proc_macro::user_doc_item) macros
 //! capture documentation from comments and make the contents
 //! available at runtime.  
 //!  
-//! Each macro invocation fills in nodes of a [DocDict](doc_data::DocDict) containing all the documentation 
-//! captured during a build. At runtime, a global copy of the tree generated at compile time is 
+//! Each macro invocation fills in nodes of a [DocDict](doc_data::DocDict) containing all the documentation
+//! captured during a build. At runtime, a global copy of the tree generated at compile time is
 //! available at [DOCS](doc_data::DOCS) via a RwLock.  
 //!
 //! ---
@@ -15,23 +15,23 @@
 //! # The macro options  
 //! These macros are easily configured with the following helper attributes(for user_doc_item) / arguments (for user_doc_fn):
 //!
-//! - [chapter_blurb](doc_data::HelperAttr::ChapterBlurb): A string literal that will be added to 
+//! - [chapter_blurb](doc_data::HelperAttr::ChapterBlurb): A string literal that will be added to
 //! the containing chapter to describe this documentation.
-//! - [chapter_name](doc_data::HelperAttr::ChapterName): A string literal that names this chapter. 
-//! - [chapter_name_slug](doc_data::HelperAttr::ChapterNameSlug): A comma-separated list of string literals 
-//! that name a path of chapters. 
+//! - [chapter_name](doc_data::HelperAttr::ChapterName): A string literal that names this chapter.
+//! - [chapter_name_slug](doc_data::HelperAttr::ChapterNameSlug): A comma-separated list of string literals
+//! that name a path of chapters.
 //! - [chapter_num](doc_data::HelperAttr::ChapterNum): An integer literal corresponding to the number of this chapter.
 //! - [chapter_num_slug](doc_data::HelperAttr::ChapterNumSlug): A comma-separated list of integer literals
 //! corresponding to a path of chapters.
-//! 
+//!
 //! # How to use `user_doc_fn` on a _doc commented_ function definition:  
-//! Imagine that the documentation for the function `call_this_function` should 
+//! Imagine that the documentation for the function `call_this_function` should
 //! be visible to the user at runtime.
 //! ```ignore
 //! #[user_doc_fn(
 //!   chapter_num_slug(1, 3, 5),
 //!   chapter_name_slug(
-//!     "A Slaying in Luton", 
+//!     "A Slaying in Luton",
 //!     "The Trouble About Ipswich",
 //!     "All Along the Weary M-5 Motorway",
 //!   ),
@@ -40,11 +40,11 @@
 //!  
 //! /// The parenchyma isn't as stiff as usual. It looks almost floppy.
 //! /// I stick out a hand to touch it. It sucks my fingertips forward.
-//! /// When I pull my hand back, a hanging bridge of sap follows. 
+//! /// When I pull my hand back, a hanging bridge of sap follows.
 //! pub fn call_this_function() -> bool { true }
-//! ``` 
+//! ```
 //!  
-//! The commented lines (from "The parenchyma" to "sap follows.") will be 
+//! The commented lines (from "The parenchyma" to "sap follows.") will be
 //! captured and assigned a location in a tree hierarchy with numbered/named nodes:  
 //! - 1. "A Slaying in Luton"   
 //! - 3. "The Trouble About Ipswich"  
@@ -67,9 +67,9 @@
 //!     \n I stick out a hand to touch it. It sucks my fingertips forward.\
 //!     \n When I pull my hand back, a hanging bridge of sap follows.",
 //! );
-//! ``` 
+//! ```
 //!  
-//! The doc comment has been inserted in a tree structure. wow. Now, it can be shown to the user 
+//! The doc comment has been inserted in a tree structure. wow. Now, it can be shown to the user
 //! at runtime.  
 //!  
 //! # How to use `user_doc_item` on a _doc-commented_ struct or enum definition.
@@ -80,12 +80,12 @@
 //! #[derive(user_doc_item, Clone, Debug, PartialEq, Eq)]
 //! /// This comment WILL NOT BE captured for user docs.
 //! pub enum Idiot {
-//!   #[chapter_num(23)] // should be overriden by slug 
+//!   #[chapter_num(23)] // should be overriden by slug
 //!   #[chapter_num_slug(1, 3, 4)]
 //!   #[chapter_name("The House of Almond Blossoms")]
-//!   /// He took a look at the card I showed him. His brows scrunched up like he smelled something offensive. 
+//!   /// He took a look at the card I showed him. His brows scrunched up like he smelled something offensive.
 //!   /// Could he tell it was fake? Everyone sweats in heat like this. If they don't, it means they're about to keel over from dehydration anyway. Still, I felt like I was sweating more than usual.
-//!   /// We stood frozen for a moment. It seemed an eon. Then he mercifully broke the silence. 
+//!   /// We stood frozen for a moment. It seemed an eon. Then he mercifully broke the silence.
 //!   /// "I can't read those. I'm just supposed to stand here and not let anyone pass."
 //!   /// I considered. I didn't want to get him in trouble – he was clearly new. Still, it was me or him.
 //!   /// "Oh," I said as casually as I could, "It says you're to let me through. But don't let anyone else through after me. It says that too.""
@@ -120,42 +120,42 @@
 //!    "tests/scratch/src",
 //! ).expect("must expand docs into dirs");
 //! ```
-//! The directory `tests/scratch/src` will be filled with documentation corresponding to 
+//! The directory `tests/scratch/src` will be filled with documentation corresponding to
 //! [mdbook](https://crates.io/crates/mdbook) format.  
-//! 
-//! 
-//! # How to use in a workspace project 
-//! 
+//!
+//!
+//! # How to use in a workspace project
+//!
 //! When capturing documentation data in a workspace with multiple sub-projects,
 //! there's only a single instance of the global documentation capture store.
-//! As such, documents captured from the last sub-project that gets compiled 
-//! tend to overwrite those from those previously captured. 
-//! 
-//! ## Workaround 
-//! Just specify a different file name for each capture using the 
-//! `set_persistence_file_name` macro. Then, supply said file name 
-//! to the `load_global_docs` function call at runtime. 
+//! As such, documents captured from the last sub-project that gets compiled
+//! tend to overwrite those from those previously captured.
+//!
+//! ## Workaround
+//! Just specify a different file name for each capture using the
+//! `set_persistence_file_name` macro. Then, supply said file name
+//! to the `load_global_docs` function call at runtime.
 //!
 //! Given a project tree that looks something like:  
 //! ```ignore
 //! some_workspace
 //!   └ sub_package_a
-//!       ┕ src/lib.rs 
+//!       ┕ src/lib.rs
 //!   └ sub_package_b
-//!       ┕ src/lib.rs 
+//!       ┕ src/lib.rs
 //! ```  
 //!
-//! 1. Invoke `set_persistence_file_name("docs_a_or_whatever")` in 
+//! 1. Invoke `set_persistence_file_name("docs_a_or_whatever")` in
 //! `sub_package_a/src/lib.rs`.
-//! 2. Invoke `set_persistence_file_name("docs_b_or_whatever")` in 
+//! 2. Invoke `set_persistence_file_name("docs_b_or_whatever")` in
 //! `sub_package_b/src/lib.rs`  
 //! 3. Elsewhere, to load docs from both packages into new dictionaries:
-//! ```ignore 
+//! ```ignore
 //!   let mut dict_a = DocDict::default();
 //!   load_global_docs("docs_a_or_whatever", Some(&mut dict_a));
 //!   let mut dict_b = DocDict::default();
 //!   load_global_docs("docs_b_or_whatever", Some(&mut dict_b));
-//! ``` 
+//! ```
 //! # Critical Note
 //! These macros use a temporary directory to persist data from compile-time to runtime.  
 //! Do not store sensitive information (keys, passwords, etc.) in doc comments captured with these macros.
